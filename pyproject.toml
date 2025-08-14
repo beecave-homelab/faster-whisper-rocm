@@ -1,14 +1,14 @@
 [project]
-name = "my-package"
+name = "faster-whisper-rocm"
 version = "0.1.0"
-description = "Python CLI package boilerplate using PDM and Typer"
+description = "A ROCm based faster-whisper implemenation for AMD GPU support"
 readme = "README.md"
 authors = [
-  { name = "Your Name", email = "you@example.com" },
+  { name = "elvee", email = "lowie@beecave.nl" },
 ]
 requires-python = ">=3.9"
 license = { text = "MIT" }
-keywords = ["cli", "typer", "boilerplate"]
+keywords = ["cli", "typer", "faster-whisper", "amd", "gpu", "rocm"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
@@ -20,8 +20,7 @@ classifiers = [
 [tool.pdm]
 
 [project.urls]
-Homepage = "https://example.com"
-Repository = "https://example.com/repo"
+Repository = "https://github.com/beecave-homelab/faster-whisper-rocm.git"
 
 [project.dependencies]
 typer = ">=0.12,<1.0"
