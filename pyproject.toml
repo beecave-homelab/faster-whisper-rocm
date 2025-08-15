@@ -16,27 +16,34 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 
-# Keep package at repo root under `my_package/`
-[tool.pdm]
+dependencies = [
+  "typer>=0.12,<1.0",
+  "rich>=13,<14",
+  "faster-whisper>=1.0,<2.0",
+]
 
+# Keep package at repo root under `faster_whisper_rocm/`
 [project.urls]
 Repository = "https://github.com/beecave-homelab/faster-whisper-rocm.git"
 
-[project.dependencies]
-typer = ">=0.12,<1.0"
-rich = ">=13,<14"
+[tool.setuptools]
+packages = ["faster_whisper_rocm"]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8",
-  "pytest-cov>=5",
-  "ruff>=0.5",
-  "black>=24",
-  "mypy>=1.10",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.5",
+    "black>=24",
+    "mypy>=1.10",
+    "auditwheel>=6.4.2",
+]
+ctranslate2-rocm = [
+    "ctranslate2 @ file:///${PROJECT_ROOT}/out/ctranslate2-3.23.0-cp310-cp310-linux_x86_64.whl",
 ]
 
 [project.scripts]
-my-package = "my_package.cli.app:app"
+faster-whisper-rocm = "faster_whisper_rocm.cli.app:app"
 
 [tool.ruff]
 line-length = 88
@@ -47,3 +54,7 @@ line-length = 88
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+
+[tool.pdm.scripts]
+# Copy ROCm shared library into installed ctranslate2 package and patch RPATH
+prepare_ctranslate2_rocm = { cmd = "python -m faster_whisper_rocm.cli.prepare_ctranslate2_rocm", help = "Vendor libctranslate2.so.3 into site-packages and set RPATH on ctranslate2 extensions" }
