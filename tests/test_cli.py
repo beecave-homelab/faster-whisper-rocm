@@ -1,7 +1,7 @@
-"""CLI tests for `my_package` using Typer's CliRunner."""
+"""CLI tests for `faster_whisper_rocm` using Typer's CliRunner."""
 from typer.testing import CliRunner
 
-from my_package.cli import app
+from faster_whisper_rocm.cli import app
 
 runner = CliRunner()
 
@@ -9,13 +9,13 @@ runner = CliRunner()
 def test_cli_help() -> None:
     result = runner.invoke(app, ["--help"])  # type: ignore[arg-type]
     assert result.exit_code == 0
-    assert "my_package command-line interface" in result.stdout
+    assert "faster_whisper_rocm command-line interface" in result.stdout
 
 
 def test_cli_version() -> None:
     result = runner.invoke(app, ["--version"])  # type: ignore[arg-type]
     assert result.exit_code == 0
-    assert "my_package" in result.stdout
+    assert "faster_whisper_rocm" in result.stdout
 
 
 def test_cli_hello() -> None:

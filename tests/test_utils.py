@@ -1,8 +1,8 @@
-"""Tests for `my_package.utils`.
+"""Tests for `faster_whisper_rocm.utils`.
 
 Uses pytest to validate core helpers.
 """
-from my_package.utils import greet
+from faster_whisper_rocm.utils import greet
 
 
 def test_greet_basic() -> None:
