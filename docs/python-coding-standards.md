@@ -61,7 +61,7 @@ Writing Pythonic code not only enhances readability and maintainability but also
 
   ```markdown
   my_project/
-  ├── my_package/
+  ├── faster_whisper_rocm/
   │   ├── __init__.py
   │   ├── module1.py
   │   └── module2.py
