@@ -14,13 +14,13 @@ This guide explains how we set up and use a ROCm-enabled CTranslate2 build for t
 
 ## Option A — Use prebuilt ROCm wheel (recommended)
 
-1) Ensure dependencies:
+1. Ensure dependencies:
 
-```bash
-pdm install
-```
+  ```bash
+  pdm install
+  ```
 
-2) Install the ROCm CTranslate2 wheel from `out/` into the active PDM venv:
+2. Install the ROCm CTranslate2 wheel from `out/` into the active PDM venv:
 
 ```bash
 # Installs the newest out/ctranslate2-*.whl
@@ -30,7 +30,7 @@ pdm run faster-whisper-rocm install-ctranslate2
 pdm run faster-whisper-rocm install-ctranslate2 --wheel out/ctranslate2-3.23.0-cp310-cp310-linux_x86_64.whl
 ```
 
-3) Optional: vendor the shared library and patch RPATH if your loader can’t find `libctranslate2.so.3`:
+3. Optional: vendor the shared library and patch RPATH if your loader can’t find `libctranslate2.so.3`:
 
 ```bash
 # Requires patchelf on the system
@@ -38,7 +38,7 @@ pdm run python -m faster_whisper_rocm.cli.prepare_ctranslate2_rocm \
   out/ctranslate2_root/lib/libctranslate2.so.3
 ```
 
-4) Verify import:
+4. Verify import:
 
 ```bash
 pdm run python -c "import ctranslate2; print('OK', ctranslate2.__version__, 'from', ctranslate2.__file__)"
@@ -58,6 +58,7 @@ docker run --rm -v "$(pwd)/out:/out" ct2-rocm-gfx1030
 ```
 
 After running the container, you should have:
+
 - `out/ctranslate2-<ver>-*.whl` (Python wheel)
 - `out/ctranslate2_root/` (installed libs, e.g., `libctranslate2.so.3`)
 
@@ -71,6 +72,7 @@ pdm run faster-whisper-rocm install-ctranslate2 --wheel out/ctranslate2-3.23.0-*
 ```
 
 Notes:
+
 - The image’s default command copies artifacts to `/out`. Mount your host `./out` to `/out` as shown above.
 - You can use `out/ctranslate2_root/lib/libctranslate2.so.3` with the vendor script if needed.
 
@@ -134,6 +136,7 @@ pdm run faster-whisper-rocm transcribe data/samples/test_long.wav \
 ```
 
 Notes:
+
 - In this project, `--device cuda` is used for GPU even with a ROCm-enabled build of CTranslate2 (consistent with our CLI usage examples and tests).
 - Progress display auto-disables when writing to stdout in non-interactive contexts.
 

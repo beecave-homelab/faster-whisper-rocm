@@ -53,7 +53,6 @@ Run the CLI (installed console script):
 ```bash
 pdm run faster-whisper-rocm --help
 pdm run faster-whisper-rocm --version
-pdm run faster-whisper-rocm hello Alice
 ```
 
 Run tests:
@@ -61,6 +60,15 @@ Run tests:
 ```bash
 pdm run pytest
 ```
+
++Coverage:
++- Coverage is enabled by default via pytest-cov (branch + line).
++- HTML report: `htmlcov/index.html`, XML: `coverage.xml`.
++- Threshold: fail under 95% (configured in `pyproject.toml` under `[tool.pytest.ini_options].addopts`).
++- Exclusions: system-specific script `faster_whisper_rocm/cli/prepare_ctranslate2_rocm.py` is omitted from coverage.
++- Coverage is enabled by default via pytest-cov (branch + line).
++- HTML report: `htmlcov/index.html`, XML: `coverage.xml`.
++- Threshold: fail under 95% (configured in `pyproject.toml` under `[tool.pytest.ini_options].addopts`).
 
 Code quality:
 

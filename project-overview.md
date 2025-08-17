@@ -19,15 +19,22 @@ This repository provides a Typer-based Python CLI with ROCm-accelerated speech t
 - `faster_whisper_rocm/`
   - `__about__.py`: version string
   - `__init__.py`: exports
-  - `cli/app.py`: Typer CLI implementation
-    - Commands:
-      - `hello`: demo greeting
-      - `install-ctranslate2`: installs ROCm CTranslate2 wheel from `out/`
-      - `model-info`: prints model/device/compute configuration
-      - `transcribe`: fully-featured wrapper over `faster_whisper.WhisperModel.transcribe`
-  - `utils/helpers.py`: small helpers
+  - `cli/app.py`: Typer CLI entrypoint (thin). Commands are registered here and
+    delegated to modules in `cli/commands/`.
+  - `cli/commands/`: modular command implementations
+    - `install_ctranslate2.py`
+    - `model_info.py`
+    - `transcribe.py`
+  - `cli/parsing.py`: CLI parsing helpers (e.g., `parse_key_value_options`).
+  - `models/whisper.py`: centralized model loader. Re-exports `WhisperModel` (best-effort import) and provides `load_whisper_model()` used by the CLI.
+  - Commands:
+    - `install-ctranslate2`: installs ROCm CTranslate2 wheel from `out/`
+    - `model-info`: prints model/device/compute configuration
+    - `transcribe`: fully-featured wrapper over `faster_whisper.WhisperModel.transcribe`
+  - `io/timestamps.py`: formatting utilities for SRT/VTT timestamps.
+  - `utils/helpers.py`: small helpers (no greeting helpers; `hello` removed)
 - `tests/`
-  - `test_cli.py`: basic CLI tests for help/version/hello
+  - `test_cli.py`: basic CLI tests for help/version
   - `test_asr_cli.py`: smoke tests for new commands (no heavy downloads)
 - `data/samples/`
   - Example audio files (e.g., `test_long.wav`)
@@ -58,7 +65,12 @@ This repository provides a Typer-based Python CLI with ROCm-accelerated speech t
       - When `--max-segments > 0`, the progress bar is segment-based with a known total; transcription stops exactly after `max_segments` segments.
       - Otherwise, if the input duration is known, a duration-based progress bar is shown.
       - If duration is unknown, a spinner is shown as an indeterminate indicator.
-    - Pass-through: `--opt key=value` (repeatable) forwards any additional supported parameter without code changes
+    - Pass-through: `--opt key=value` (repeatable) forwards any additional supported parameter without code changes. Parsing implemented in `faster_whisper_rocm/cli/parsing.py`.
+
+### Model Loading
+
+- Model instantiation is delegated to `faster_whisper_rocm/models/whisper.py` via `load_whisper_model()`.
+- The CLI exposes a test hook `app.WhisperModel` which defaults to the imported `WhisperModel` (or `None` if not installed). Tests can monkeypatch `faster_whisper_rocm.cli.app.WhisperModel` to inject fakes. The CLI passes this hook into the loader.
 
 ## ROCm CTranslate2 Override Workflow
 
@@ -106,3 +118,4 @@ When `--output` is omitted, output is written to `data/transcripts/<audio_basena
 
 - Tests avoid model downloads; heavy tests should be opt-in via env flags if added later.
 - No changes are made to `CTranslate2/` source for CLI operation; only the wheel installation is required to activate ROCm.
+- Coverage is enabled by default with pytest-cov. After running `pdm run pytest`, open `htmlcov/index.html` for the HTML report (XML at `coverage.xml`).
