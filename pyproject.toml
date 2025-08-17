@@ -37,6 +37,7 @@ dev = [
     "black>=24",
     "mypy>=1.10",
     "auditwheel>=6.4.2",
+    "isort>=6.0.1",
 ]
 ctranslate2-rocm = [
     "ctranslate2 @ file:///${PROJECT_ROOT}/out/ctranslate2-3.23.0-cp310-cp310-linux_x86_64.whl",
@@ -52,9 +53,26 @@ line-length = 88
 line-length = 88
 
 [tool.pytest.ini_options]
-addopts = "-q"
+addopts = "-q --cov=faster_whisper_rocm --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml --cov-report=html --cov-fail-under=85"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["faster_whisper_rocm/cli/prepare_ctranslate2_rocm.py"]
 
 [tool.pdm.scripts]
 # Copy ROCm shared library into installed ctranslate2 package and patch RPATH
 prepare_ctranslate2_rocm = { cmd = "python -m faster_whisper_rocm.cli.prepare_ctranslate2_rocm", help = "Vendor libctranslate2.so.3 into site-packages and set RPATH on ctranslate2 extensions" }
+
+# ------------------------------
+# Import sorting (isort)
+# Align isort behaviour with Ruff/Black so that clean_codebase.sh runs
+# `isort` without fighting the `ruff format` import ordering.
+# ------------------------------
+[tool.isort]
+profile = "black"         # same style Ruff uses
+line_length = 88           # match Black/Ruff default
+multi_line_output = 3      # Vertical hanging indent (black-compatible)
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+skip_gitignore = true
