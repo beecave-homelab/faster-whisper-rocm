@@ -1,20 +1,8 @@
 """General-purpose helper utilities.
 
-Functions here are intentionally side-effect free and reusable across the
-package. They follow the project's coding standards and use Google style
-docstrings.
+This module intentionally contains only shared helpers used by the active
+CLI commands and core logic. The previous `greet()` helper used by the
+deprecated `hello` command has been removed.
 """
+
 from __future__ import annotations
-
-
-def greet(name: str) -> str:
-    """Return a friendly greeting message.
-
-    Args:
-        name: Person's name to greet.
-
-    Returns:
-        A greeting string addressing the provided name.
-    """
-    normalized = name.strip() or "there"
-    return f"Hello, {normalized}!"
