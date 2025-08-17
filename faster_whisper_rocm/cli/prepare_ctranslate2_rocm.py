@@ -1,5 +1,6 @@
 """Prepare ROCm CTranslate2 wheel for faster-whisper"""
 
+import importlib.metadata
 import shutil
 import subprocess
 import sys
@@ -9,14 +10,12 @@ from pathlib import Path
 def _find_ctranslate2_pkg_dir() -> Path:
     """Locate the installed ctranslate2 package directory without importing it."""
     try:
-        import importlib.metadata as m  # Python 3.8+
-    except Exception as e:
-        print("ERROR: importlib.metadata not available:", e, file=sys.stderr)
-        sys.exit(1)
-    try:
-        dist = m.distribution("ctranslate2")
-    except m.PackageNotFoundError:
-        print("ERROR: ctranslate2 distribution not found in this environment.", file=sys.stderr)
+        dist = importlib.metadata.distribution("ctranslate2")
+    except importlib.metadata.PackageNotFoundError:
+        print(
+            "ERROR: ctranslate2 distribution not found in this environment.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     # Try to resolve the top-level package directory under site-packages.
     candidates = [
@@ -35,12 +34,18 @@ def _find_ctranslate2_pkg_dir() -> Path:
     sys.exit(1)
 
 
-def _check_patchelf():
+def _check_patchelf() -> None:
     try:
-        subprocess.run(["patchelf", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            ["patchelf", "--version"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(
-            "ERROR: patchelf not found. Please install patchelf (e.g., apt-get install patchelf, dnf install patchelf).",
+            "ERROR: patchelf not found. "
+            "Please install patchelf (e.g., apt-get install patchelf, dnf install patchelf).",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -64,9 +69,11 @@ def _ensure_soname_symlink(copied_lib: Path) -> None:
     libctranslate2.so.3 -> libctranslate2.so.3.23.0 exists in the same directory.
     """
     try:
-        out = subprocess.check_output(["patchelf", "--print-soname", str(copied_lib)], text=True).strip()
+        out = subprocess.check_output(
+            ["patchelf", "--print-soname", str(copied_lib)], text=True
+        ).strip()
         soname = out
-    except Exception:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         # Fallback: try to infer SONAME by trimming trailing version components
         name = copied_lib.name
         # If name looks like libfoo.so.X.Y[.Z], cut to libfoo.so.X
@@ -100,12 +107,28 @@ def _patch_rpath_on_extensions(pkg_dir: Path, rel_lib_dir: str = ".rocm_libs") -
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Prepare and patch the CTranslate2 library for ROCm.
+
+    This script locates the installed ctranslate2 package, copies the ROCm-enabled
+    shared library into it, and patches the RPATH of the extension modules to find
+    it. This allows the wheel to be self-contained without requiring LD_LIBRARY_PATH.
+
+    Args:
+        argv: Command-line arguments. If provided, the first argument is treated
+            as the path to the source `libctranslate2.so` file.
+
+    Returns:
+        0 on success, non-zero on failure.
+    """
     argv = argv or sys.argv[1:]
-    # Allow overriding the source lib path via CLI arg; default to project-local 'out/ctranslate2_root/lib/libctranslate2.so.3'
+    # Allow overriding source lib path via CLI arg; defaults to:
+    # 'out/ctranslate2_root/lib/libctranslate2.so.3'
     if argv:
         src_lib = Path(argv[0]).resolve()
     else:
-        src_lib = (Path.cwd() / "out/ctranslate2_root/lib/libctranslate2.so.3").resolve()
+        src_lib = (
+            Path.cwd() / "out/ctranslate2_root/lib/libctranslate2.so.3"
+        ).resolve()
 
     _check_patchelf()
 
@@ -118,11 +141,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # Verify import without LD_LIBRARY_PATH by launching a clean subprocess
     code = (
-        "import ctranslate2, sys; print('OK import ctranslate2', ctranslate2.__version__, 'from', ctranslate2.__file__)"
+        "import ctranslate2, sys; "
+        "print('OK import ctranslate2', ctranslate2.__version__, 'from', ctranslate2.__file__)"
     )
-    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    res = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
     if res.returncode != 0:
-        print("ERROR: Verification import failed after patching:\n" + res.stderr, file=sys.stderr)
+        print(
+            "ERROR: Verification import failed after patching:\n" + res.stderr,
+            file=sys.stderr,
+        )
         return 5
     print(res.stdout.strip())
     print(f"Patched RPATH and copied {copied} successfully.")

@@ -3,6 +3,6 @@
 Exposes the Typer application and command groupings.
 """
 
-from .app import app
+from faster_whisper_rocm.cli.app import app
 
 __all__ = ["app"]
