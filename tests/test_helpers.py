@@ -11,14 +11,12 @@ from faster_whisper_rocm.io.timestamps import format_timestamp
 
 def test_parse_key_value_options_parses_json_and_strings() -> None:
     """Tests that `parse_key_value_options` correctly parses mixed values."""
-    parsed = parse_key_value_options(
-        [
-            "a=1",
-            "b=true",
-            'c="hi"',
-            "d=foo",
-        ]
-    )
+    parsed = parse_key_value_options([
+        "a=1",
+        "b=true",
+        'c="hi"',
+        "d=foo",
+    ])
     assert parsed["a"] == 1
     assert parsed["b"] is True
     assert parsed["c"] == "hi"

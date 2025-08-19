@@ -1,12 +1,15 @@
+"""Additional CLI coverage tests (progress modes, install paths, options)."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
-from faster_whisper_rocm.cli import app, app as app_mod
+from faster_whisper_rocm.cli import app
+from faster_whisper_rocm.cli import app as app_mod
 
 runner = CliRunner()
 
@@ -31,7 +34,7 @@ class FakeInfo:
     """Represents fake information about the transcription process."""
 
     def __init__(
-        self, language: str = "en", prob: float = 0.95, duration: Optional[float] = 3.0
+        self, language: str = "en", prob: float = 0.95, duration: float | None = 3.0
     ) -> None:
         """Initializes the FakeInfo.
 
@@ -56,9 +59,9 @@ class FakeWhisper:
         compute_type: str,
         cpu_threads: int,
         num_workers: int,
-        download_root: Optional[str] = None,
+        download_root: str | None = None,
         local_files_only: bool = False,
-        device_index: Any = None,
+        device_index: int | list[int] | None = None,
     ) -> None:
         """Initializes the FakeWhisper model.
 
@@ -84,8 +87,8 @@ class FakeWhisper:
         )
 
     def transcribe(
-        self, audio_path: str, **_: Dict[str, Any]
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
+        self, audio_path: str, **_: dict[str, Any]
+    ) -> tuple[list[FakeSeg], FakeInfo]:
         """Performs fake transcription.
 
         Args:
@@ -179,7 +182,7 @@ def test_install_ctranslate2_dry_run_autofind(
     wheel.write_bytes(b"fake")
 
     # Set the app.glob hook used by the command module
-    setattr(app, "glob", lambda pattern: [str(wheel)])
+    app.glob = lambda pattern: [str(wheel)]
 
     res = runner.invoke(app, ["install-ctranslate2", "--dry-run"])  # type: ignore[list-item]
     assert res.exit_code == 0
@@ -189,7 +192,7 @@ def test_install_ctranslate2_dry_run_autofind(
 def test_model_info_multi_device_index(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests the model-info command with multiple device indices."""
     # Use the FakeWhisper above for instantiation
-    setattr(app_mod, "WhisperModel", FakeWhisper)
+    app_mod.WhisperModel = FakeWhisper
     res = runner.invoke(
         app,
         [

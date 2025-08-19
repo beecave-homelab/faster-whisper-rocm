@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -58,9 +58,9 @@ class FakeWhisper:
         compute_type: str,
         cpu_threads: int,
         num_workers: int,
-        download_root: Optional[str] = None,
+        download_root: str | None = None,
         local_files_only: bool = False,
-        device_index: Any = None,
+        device_index: int | list[int] | None = None,
     ) -> None:
         """Initializes the fake Whisper model.
 
@@ -89,31 +89,37 @@ class FakeWhisper:
         self,
         audio_path: str,  # noqa: ARG002
         *,
-        language: Optional[str] = None,  # noqa: ARG002
+        language: str | None = None,  # noqa: ARG002
         task: str = "transcribe",  # noqa: ARG002
         beam_size: int = 1,  # noqa: ARG002
-        best_of: Optional[int] = None,  # noqa: ARG002
-        patience: Optional[float] = None,  # noqa: ARG002
-        length_penalty: Optional[float] = None,  # noqa: ARG002
+        best_of: int | None = None,  # noqa: ARG002
+        patience: float | None = None,  # noqa: ARG002
+        length_penalty: float | None = None,  # noqa: ARG002
         temperature: float = 0.0,  # noqa: ARG002
         temperature_increment_on_fallback: float = 0.2,  # noqa: ARG002
-        compression_ratio_threshold: Optional[float] = None,  # noqa: ARG002
-        log_prob_threshold: Optional[float] = None,  # noqa: ARG002
-        no_speech_threshold: Optional[float] = None,  # noqa: ARG002
+        compression_ratio_threshold: float | None = None,  # noqa: ARG002
+        log_prob_threshold: float | None = None,  # noqa: ARG002
+        no_speech_threshold: float | None = None,  # noqa: ARG002
         condition_on_previous_text: bool = True,  # noqa: ARG002
-        initial_prompt: Optional[str] = None,  # noqa: ARG002
-        prefix: Optional[str] = None,  # noqa: ARG002
+        initial_prompt: str | None = None,  # noqa: ARG002
+        prefix: str | None = None,  # noqa: ARG002
         suppress_blank: bool = True,  # noqa: ARG002
-        suppress_tokens: Optional[str] = None,  # noqa: ARG002
+        suppress_tokens: str | None = None,  # noqa: ARG002
         without_timestamps: bool = False,  # noqa: ARG002
         max_initial_timestamp: float = 1.0,  # noqa: ARG002
         word_timestamps: bool = False,  # noqa: ARG002
         prepend_punctuations: str = "“¿([{-",  # noqa: ARG002
         append_punctuations: str = "”.:;?!)}]",  # noqa: ARG002
         vad_filter: bool = True,  # noqa: ARG002
-        vad_parameters: Optional[Dict[str, Any]] = None,  # noqa: ARG002
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
-        """Runs a fake transcription, returning predefined segments and info."""
+        vad_parameters: dict[str, Any] | None = None,  # noqa: ARG002
+    ) -> tuple[list[FakeSeg], FakeInfo]:
+        """Runs a fake transcription.
+
+        Returns:
+            A tuple of:
+            - list[FakeSeg]: The generated segments.
+            - FakeInfo: The accompanying transcription metadata.
+        """
         segs = [
             FakeSeg(0.0, 1.0, "Hello"),
             FakeSeg(1.0, 2.0, "World"),

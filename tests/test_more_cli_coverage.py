@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -33,7 +33,7 @@ class FakeInfo:
     """A fake transcription info object for testing."""
 
     def __init__(
-        self, language: str = "en", prob: float = 0.95, duration: Optional[float] = 3.0
+        self, language: str = "en", prob: float = 0.95, duration: float | None = 3.0
     ) -> None:
         """Initializes the FakeInfo.
 
@@ -58,9 +58,9 @@ class FakeWhisperNoDuration:
         compute_type: str,
         cpu_threads: int,
         num_workers: int,
-        download_root: Optional[str] = None,
+        download_root: str | None = None,
         local_files_only: bool = False,
-        device_index: Any = None,
+        device_index: int | list[int] | None = None,
     ) -> None:
         """Initializes the fake Whisper model.
 
@@ -79,9 +79,13 @@ class FakeWhisperNoDuration:
     def transcribe(
         self,
         audio_path: str,
-        **_: Dict[str, Any],  # noqa: ARG002
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
-        """Runs a fake transcription, returning segments and info without duration."""
+        **_: dict[str, Any],  # noqa: ARG002
+    ) -> tuple[list[FakeSeg], FakeInfo]:
+        """Runs a fake transcription, returning segments and info without duration.
+
+        Returns:
+            tuple[list[FakeSeg], FakeInfo]: The segments and info tuple.
+        """
         segs = [FakeSeg(0.0, 1.0, "A"), FakeSeg(1.0, 2.0, "B")]
         info = FakeInfo("en", 0.9, None)  # duration unknown triggers spinner branch
         return segs, info
@@ -169,7 +173,8 @@ def test_transcribe_output_path_without_extension(
         ],
     )
     assert res.exit_code == 0
-    # With suffixless path, CLI treats it as a directory-like hint and derives filename from audio basename
+    # With suffixless path, CLI treats it as a directory-like hint
+    # and derives filename from audio basename
     dest = out_path / (audio.stem + ".jsonl")
     assert dest.exists() and dest.read_text(encoding="utf-8").strip()
 

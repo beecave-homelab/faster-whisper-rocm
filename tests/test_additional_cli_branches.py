@@ -1,7 +1,9 @@
+"""Tests covering additional CLI branches for model-info and transcribe."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -31,7 +33,7 @@ class FakeInfo:
     """Represents fake information about the transcription process."""
 
     def __init__(
-        self, language: str = "en", prob: float = 0.95, duration: Optional[float] = 3.0
+        self, language: str = "en", prob: float = 0.95, duration: float | None = 3.0
     ) -> None:
         """Initializes the FakeInfo.
 
@@ -56,9 +58,9 @@ class FakeWhisper:
         compute_type: str,
         cpu_threads: int,
         num_workers: int,
-        download_root: Optional[str] = None,
+        download_root: str | None = None,
         local_files_only: bool = False,
-        device_index: Any = None,
+        device_index: int | list[int] | None = None,
     ) -> None:
         """Initializes the FakeWhisper model.
 
@@ -85,8 +87,8 @@ class FakeWhisper:
         )
 
     def transcribe(
-        self, audio_path: str, **_: Dict[str, Any]
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
+        self, audio_path: str, **_: dict[str, object]
+    ) -> tuple[list[FakeSeg], FakeInfo]:
         """Performs fake transcription.
 
         Args:
@@ -145,9 +147,9 @@ def test_install_ctranslate2_run_success(
     wheel = tmp_path / "ctranslate2-0.0.0-py3-none-any.whl"
     wheel.write_bytes(b"fake_wheel")
 
-    called: Dict[str, Any] = {"args": None}
+    called: dict[str, Any] = {"args": None}
 
-    def _fake_check_call(cmd: List[str]) -> int:
+    def _fake_check_call(cmd: list[str]) -> int:
         called["args"] = cmd
         return 0
 

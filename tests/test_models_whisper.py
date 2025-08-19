@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -27,7 +27,7 @@ def test_load_whisper_model_uses_override_class(
     class Dummy:
         """A dummy class to substitute for WhisperModel."""
 
-        def __init__(self, name: str, **kwargs: Dict[str, Any]) -> None:
+        def __init__(self, name: str, **kwargs: dict[str, Any]) -> None:
             """Initializes the Dummy class.
 
             Args:

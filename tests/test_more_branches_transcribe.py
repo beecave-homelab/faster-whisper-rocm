@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -33,7 +33,7 @@ class FakeInfo:
     """A fake transcription info object for testing."""
 
     def __init__(
-        self, language: str = "en", prob: float = 0.95, duration: Optional[float] = 3.0
+        self, language: str = "en", prob: float = 0.95, duration: float | None = 3.0
     ) -> None:
         """Initializes the FakeInfo.
 
@@ -58,9 +58,9 @@ class FakeWhisper:
         compute_type: str,
         cpu_threads: int,
         num_workers: int,
-        download_root: Optional[str] = None,
+        download_root: str | None = None,
         local_files_only: bool = False,
-        device_index: Any = None,
+        device_index: int | list[int] | None = None,
     ) -> None:
         """Initializes the fake Whisper model.
 
@@ -88,9 +88,15 @@ class FakeWhisper:
     def transcribe(
         self,
         audio_path: str,
-        **_: Dict[str, Any],  # noqa: ARG002
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
-        """Runs a fake transcription, returning predefined segments and info."""
+        **_: dict[str, object],  # noqa: ARG002
+    ) -> tuple[list[FakeSeg], FakeInfo]:
+        """Runs a fake transcription.
+
+        Returns:
+            A tuple of:
+            - list[FakeSeg]: The generated segments.
+            - FakeInfo: The accompanying transcription metadata.
+        """
         segs = [FakeSeg(0.0, 1.0, "Hello"), FakeSeg(1.0, 2.0, "World")]
         info = FakeInfo("en", 0.88, 3.0)
         return segs, info
@@ -99,15 +105,21 @@ class FakeWhisper:
 class FakeWhisperNoDuration:
     """A fake WhisperModel that returns info without a duration."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
+    def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: ARG002
         """Initializes the fake Whisper model."""
 
     def transcribe(
         self,
         audio_path: str,
-        **_: Dict[str, Any],  # noqa: ARG002
-    ) -> Tuple[List[FakeSeg], FakeInfo]:
-        """Runs a fake transcription, returning segments and info without duration."""
+        **_: dict[str, Any],  # noqa: ARG002
+    ) -> tuple[list[FakeSeg], FakeInfo]:
+        """Runs a fake transcription.
+
+        Returns:
+            A tuple of:
+            - list[FakeSeg]: The generated segments.
+            - FakeInfo: The accompanying transcription metadata (duration None).
+        """
         segs = [FakeSeg(0.0, 1.0, "A"), FakeSeg(1.0, 2.0, "B")]
         info = FakeInfo("en", 0.9, None)
         return segs, info
