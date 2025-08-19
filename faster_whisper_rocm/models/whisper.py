@@ -6,24 +6,29 @@ so the CLI can remain thin and tests can mock in a single place.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Type
+# The WhisperModel implementation is resolved at import time if available.
+# Tests may monkeypatch this global to simulate availability or to inject fakes.
+WhisperModel: type[object] | None = None
 
-# The WhisperModel class is dynamically imported to avoid loading heavy
-# dependencies at startup. This global can be used by tests for monkeypatching.
-WhisperModel: Optional[Type[Any]] = None
+try:  # Best-effort import; keep None if the package is not installed
+    from faster_whisper import WhisperModel as _FWWhisperModel  # type: ignore
+
+    WhisperModel = _FWWhisperModel
+except Exception:  # pragma: no cover - environment dependent
+    WhisperModel = None
 
 
 def load_whisper_model(
     model: str,
     *,
-    _WhisperModel: Optional[Type[Any]] = None,
-    **kwargs: Any,
-) -> Any:
+    _whisper_model: type[object] | None = None,
+    **kwargs: object,
+) -> object:
     """Instantiate a WhisperModel.
 
     Args:
         model: Model name or local path.
-        _WhisperModel: Optional override/class to instantiate (used by tests).
+        _whisper_model: Optional override/class to instantiate (used by tests).
         **kwargs: Keyword arguments forwarded to the model constructor.
 
     Returns:
@@ -33,17 +38,15 @@ def load_whisper_model(
         ImportError: If the faster-whisper package is not installed.
     """
     # Allow test hook to override the model implementation.
-    if _WhisperModel is not None:
-        return _WhisperModel(model, **kwargs)
+    if _whisper_model is not None:
+        return _whisper_model(model, **kwargs)
 
-    # Dynamic import to defer loading faster-whisper.
-    try:
-        from faster_whisper import WhisperModel as _FWWhisperModel
-    except ImportError:
+    # Use the resolved global implementation when available.
+    if WhisperModel is None:
         raise ImportError(
-            "faster-whisper is not installed. Please install it before using this command."
+            "WhisperModel implementation is not available. Ensure "
+            "'faster-whisper' is installed, or provide a custom implementation "
+            "via the _whisper_model parameter."
         )
 
-    # If the test hook has patched the global, use it.
-    impl = WhisperModel if WhisperModel is not None else _FWWhisperModel
-    return impl(model, **kwargs)
+    return WhisperModel(model, **kwargs)
