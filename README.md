@@ -61,14 +61,12 @@ Run tests:
 pdm run pytest
 ```
 
-+Coverage:
-+- Coverage is enabled by default via pytest-cov (branch + line).
-+- HTML report: `htmlcov/index.html`, XML: `coverage.xml`.
-+- Threshold: fail under 95% (configured in `pyproject.toml` under `[tool.pytest.ini_options].addopts`).
-+- Exclusions: system-specific script `faster_whisper_rocm/cli/prepare_ctranslate2_rocm.py` is omitted from coverage.
-+- Coverage is enabled by default via pytest-cov (branch + line).
-+- HTML report: `htmlcov/index.html`, XML: `coverage.xml`.
-+- Threshold: fail under 95% (configured in `pyproject.toml` under `[tool.pytest.ini_options].addopts`).
+Coverage:
+
+- Enabled by default via pytest-cov (branch + line).
+- HTML report: `htmlcov/index.html`, XML: `coverage.xml`.
+- Threshold: fail under 85% (see `pyproject.toml` `[tool.pytest.ini_options].addopts`).
+- Exclusions: system-specific script `faster_whisper_rocm/cli/prepare_ctranslate2_rocm.py` is omitted from coverage.
 
 Code quality:
 
@@ -82,6 +80,25 @@ Notes:
 - Legacy files like `setup.py` and `requirements.txt` are no longer used with PDM.
 - Entry point is defined in `pyproject.toml` under `[project.scripts]` as `faster-whisper-rocm`.
 
+## Environment configuration (.env)
+
+All optional flags of the `transcribe` command can be configured via environment variables. A centralized loader reads a `.env` file at startup and typed defaults are exposed from `faster_whisper_rocm/utils/constant.py`.
+
+- Prefix: `FWR_TRANSCRIBE_`
+- Example file: `.env.example` (copy to `.env` and edit)
+- CLI flags always override env defaults
+
+Quick start:
+
+```bash
+cp .env.example .env
+# edit .env, e.g.:
+echo 'FWR_TRANSCRIBE_DEVICE=cpu' >> .env
+echo 'FWR_TRANSCRIBE_OUTPUT_FORMAT=jsonl' >> .env
+```
+
+These map directly to Typer defaults in `faster_whisper_rocm/cli/app.py`. See `.env.example` for the full list and descriptions.
+
 ## Faster-Whisper ROCm CLI
 
 The CLI wraps `faster-whisper` with ROCm-enabled CTranslate2. It exposes a fully featured `transcribe` command and helpers.
@@ -92,7 +109,7 @@ The CLI wraps `faster-whisper` with ROCm-enabled CTranslate2. It exposes a fully
   pdm install
   ```
 
-2. Override CTranslate2 with the ROCm wheel provided in `out/`:
+1. Override CTranslate2 with the ROCm wheel provided in `out`:
 
   ```bash
   # Installs the newest out/ctranslate2-*.whl into the active environment
@@ -102,7 +119,7 @@ The CLI wraps `faster-whisper` with ROCm-enabled CTranslate2. It exposes a fully
   pdm run faster-whisper-rocm install-ctranslate2 --wheel out/ctranslate2-3.23.0-cp310-cp310-linux_x86_64.whl
   ```
 
-3. Transcribe audio (plain, jsonl, srt, or vtt output):
+1. Transcribe audio (plain, jsonl, srt, or vtt output):
 
   ```bash
   pdm run faster-whisper-rocm transcribe data/samples/test_long.wav \
@@ -124,6 +141,8 @@ Note:
   - When `--max-segments > 0`, the progress bar is segment-based with a known total. Transcription stops exactly after `max_segments` segments.
   - Otherwise, if the input duration is known, a duration-based progress bar is shown.
   - If duration is unknown, a spinner is shown as an indeterminate indicator.
+
+- Accepted input types: Only audio/video files by extension. Audio: `.wav, .mp3, .m4a, .flac, .ogg, .opus, .aac, .wma, .aiff, .aif, .alac, .mka`. Video: `.mp4, .mkv, .mov, .avi, .webm, .mpeg, .mpg, .m4v, .ts, .m2ts, .wmv, .flv, .3gp`. Other types (e.g., `.srt`, `.vtt`, `.txt`, `.pdf`) are rejected with a clear error.
 
 Common options (subset; use `--help` for full list):
 

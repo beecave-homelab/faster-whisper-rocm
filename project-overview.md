@@ -66,11 +66,22 @@ This repository provides a Typer-based Python CLI with ROCm-accelerated speech t
       - Otherwise, if the input duration is known, a duration-based progress bar is shown.
       - If duration is unknown, a spinner is shown as an indeterminate indicator.
     - Pass-through: `--opt key=value` (repeatable) forwards any additional supported parameter without code changes. Parsing implemented in `faster_whisper_rocm/cli/parsing.py`.
+    - Input types: Only audio/video files are accepted by extension allowlist. Supported extensions:
+      - Audio: `.wav, .mp3, .m4a, .flac, .ogg, .opus, .aac, .wma, .aiff, .aif, .alac, .mka`
+      - Video: `.mp4, .mkv, .mov, .avi, .webm, .mpeg, .mpg, .m4v, .ts, .m2ts, .wmv, .flv, .3gp`
+      - Any other type (e.g., `.srt`, `.vtt`, `.txt`, `.pdf`) is rejected with a clear `BadParameter` error.
 
 ### Model Loading
 
 - Model instantiation is delegated to `faster_whisper_rocm/models/whisper.py` via `load_whisper_model()`.
 - The CLI exposes a test hook `app.WhisperModel` which defaults to the imported `WhisperModel` (or `None` if not installed). Tests can monkeypatch `faster_whisper_rocm.cli.app.WhisperModel` to inject fakes. The CLI passes this hook into the loader.
+
+### Environment-driven configuration
+
+- Centralized env loading happens in `faster_whisper_rocm/utils/env_loader.py` via `load_project_env()`. It is called exactly once from `faster_whisper_rocm/utils/constant.py` at import time and is idempotent.
+- All transcribe CLI defaults are exposed as typed `DEFAULT_*` constants in `faster_whisper_rocm/utils/constant.py` and read from environment variables prefixed with `FWR_TRANSCRIBE_`.
+- The CLI (`faster_whisper_rocm/cli/app.py`) imports these constants and wires them directly into Typer option defaults for the `transcribe` command.
+- Configure defaults by creating a `.env` file at the repository root. See `.env.example` for a complete list of supported variables and their default values.
 
 ## ROCm CTranslate2 Override Workflow
 
