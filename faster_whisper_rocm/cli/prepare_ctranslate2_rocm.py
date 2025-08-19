@@ -8,7 +8,15 @@ from pathlib import Path
 
 
 def _find_ctranslate2_pkg_dir() -> Path:
-    """Locate the installed ctranslate2 package directory without importing it."""
+    """Locate the installed ctranslate2 package directory without importing it.
+
+    Returns:
+        Path: Absolute path to the installed ``ctranslate2`` package directory.
+
+    Notes:
+        Exits the process with status code 1 if the distribution is not found
+        or the directory cannot be determined.
+    """
     try:
         dist = importlib.metadata.distribution("ctranslate2")
     except importlib.metadata.PackageNotFoundError:
