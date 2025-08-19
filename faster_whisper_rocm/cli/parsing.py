@@ -7,12 +7,12 @@ kept separate from command implementations for better maintainability.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 import typer
 
 
-def parse_key_value_options(options: List[str]) -> Dict[str, Any]:
+def parse_key_value_options(options: list[str]) -> dict[str, Any]:
     """Parse repeated ``--opt key=value`` pairs into a dictionary.
 
     Attempts JSON parsing on values; falls back to raw strings when JSON fails.
@@ -26,7 +26,7 @@ def parse_key_value_options(options: List[str]) -> Dict[str, Any]:
     Raises:
         typer.BadParameter: If an item does not contain an '=' character.
     """
-    parsed: Dict[str, Any] = {}
+    parsed: dict[str, Any] = {}
     for item in options:
         if "=" not in item:
             raise typer.BadParameter(f"Invalid opt '{item}', expected key=value.")

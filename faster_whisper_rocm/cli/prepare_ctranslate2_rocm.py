@@ -1,4 +1,4 @@
-"""Prepare ROCm CTranslate2 wheel for faster-whisper"""
+"""Prepare ROCm CTranslate2 wheel for faster-whisper."""
 
 import importlib.metadata
 import shutil
@@ -39,13 +39,13 @@ def _check_patchelf() -> None:
         subprocess.run(
             ["patchelf", "--version"],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(
             "ERROR: patchelf not found. "
-            "Please install patchelf (e.g., apt-get install patchelf, dnf install patchelf).",
+            "Please install patchelf (e.g., apt-get install patchelf, "
+            "dnf install patchelf).",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -62,7 +62,7 @@ def _copy_shared_lib(src_lib: Path, dst_dir: Path) -> Path:
 
 
 def _ensure_soname_symlink(copied_lib: Path) -> None:
-    """Create a symlink named by the library SONAME pointing to the copied file, if needed.
+    """Create a SONAME symlink for the copied library, if needed.
 
     Many loaders resolve dependencies by SONAME (e.g., libctranslate2.so.3).
     If the file is versioned (e.g., libctranslate2.so.3.23.0), ensure a symlink
@@ -142,7 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     # Verify import without LD_LIBRARY_PATH by launching a clean subprocess
     code = (
         "import ctranslate2, sys; "
-        "print('OK import ctranslate2', ctranslate2.__version__, 'from', ctranslate2.__file__)"
+        "print('OK import ctranslate2', ctranslate2.__version__, 'from', "
+        "ctranslate2.__file__)"
     )
     res = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, check=False

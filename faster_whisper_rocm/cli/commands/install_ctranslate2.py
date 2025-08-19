@@ -1,3 +1,5 @@
+"""Install the ROCm CTranslate2 wheel, overriding the preinstalled version."""
+
 from __future__ import annotations
 
 import subprocess
@@ -5,7 +7,6 @@ import sys
 from glob import glob
 from importlib import import_module
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -13,7 +14,7 @@ from rich.console import Console
 console = Console()
 
 
-def run_install_ctranslate2(*, wheel: Optional[Path], dry_run: bool) -> None:
+def run_install_ctranslate2(*, wheel: Path | None, dry_run: bool) -> None:
     """Install the ROCm CTranslate2 wheel, overriding the preinstalled version.
 
     This function constructs and executes a `pip install` command to force the
@@ -25,6 +26,11 @@ def run_install_ctranslate2(*, wheel: Optional[Path], dry_run: bool) -> None:
             it automatically finds the latest wheel in the `out/` directory.
         dry_run: If True, the installation command is printed to the console
             but not executed.
+
+    Raises:
+        typer.Exit: If no wheel is found in the `out/` directory when
+            ``wheel`` is not provided, or if the pip installation command
+            fails.
     """
     # Resolve hooks from the main app (for test monkeypatching support)
     try:
@@ -62,4 +68,4 @@ def run_install_ctranslate2(*, wheel: Optional[Path], dry_run: bool) -> None:
         console.print("[green]CTranslate2 installed successfully.[/green]")
     except subprocess.CalledProcessError as e:  # pragma: no cover
         console.print(f"[red]pip install failed with code {e.returncode}[/red]")
-        raise typer.Exit(code=e.returncode or 1)
+        raise typer.Exit(code=e.returncode or 1) from e

@@ -13,7 +13,6 @@ import sys
 from contextlib import nullcontext
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import typer
 from rich.console import Console
@@ -27,8 +26,18 @@ from rich.progress import (
 )
 
 from faster_whisper_rocm.cli.parsing import parse_key_value_options
-from faster_whisper_rocm.io.timestamps import format_timestamp
+from faster_whisper_rocm.io.subtitle_formatter import (
+    build_cues_from_segments,
+    refine_cues,
+)
+from faster_whisper_rocm.io.subtitle_formatter import (
+    format_srt as _format_srt,
+)
+from faster_whisper_rocm.io.subtitle_formatter import (
+    format_vtt as _format_vtt,
+)
 from faster_whisper_rocm.models.whisper import load_whisper_model
+from faster_whisper_rocm.utils.constant import DEFAULT_ACCEPTED_INPUT_EXTS
 
 console = Console()
 
@@ -40,43 +49,43 @@ def run_transcribe(
     model: str,
     device: str,
     compute_type: str,
-    device_index: Optional[str],
+    device_index: str | None,
     cpu_threads: int,
     num_workers: int,
-    download_root: Optional[Path],
+    download_root: Path | None,
     local_files_only: bool,
     # Transcribe options
-    language: Optional[str],
+    language: str | None,
     task: str,
     beam_size: int,
-    best_of: Optional[int],
-    patience: Optional[float],
-    length_penalty: Optional[float],
+    best_of: int | None,
+    patience: float | None,
+    length_penalty: float | None,
     temperature: float,
     temperature_increment_on_fallback: float,
-    compression_ratio_threshold: Optional[float],
-    log_prob_threshold: Optional[float],
-    no_speech_threshold: Optional[float],
+    compression_ratio_threshold: float | None,
+    log_prob_threshold: float | None,
+    no_speech_threshold: float | None,
     condition_on_previous_text: bool,
-    initial_prompt: Optional[str],
-    prefix: Optional[str],
+    initial_prompt: str | None,
+    prefix: str | None,
     suppress_blank: bool,
-    suppress_tokens: Optional[str],
+    suppress_tokens: str | None,
     without_timestamps: bool,
     max_initial_timestamp: float,
     word_timestamps: bool,
     prepend_punctuations: str,
     append_punctuations: str,
     vad_filter: bool,
-    vad_parameters: Optional[str],
+    vad_parameters: str | None,
     # Output
     output_format: str,
-    output: Optional[Path],
+    output: Path | None,
     max_segments: int,
     print_language: bool,
     print_prob: bool,
     show_progress: bool,
-    opt: List[str],
+    opt: list[str],
 ) -> None:
     """Transcribes an audio file using a Whisper model.
 
@@ -124,6 +133,10 @@ def run_transcribe(
         print_prob: If True, print the language probability.
         show_progress: If True, display a progress bar.
         opt: List of key-value pairs for other model options.
+
+    Raises:
+        typer.BadParameter: If ``--vad-parameters`` contains invalid JSON, or
+            an unsupported ``output_format`` is provided.
     """
     # Resolve WhisperModel test hook
     try:
@@ -133,8 +146,29 @@ def run_transcribe(
     except (ImportError, AttributeError):  # pragma: no cover
         whisper_model_hook = None
 
+    # Early input validation
+    audio_path = Path(audio_path)
+    if not audio_path.exists():
+        raise typer.BadParameter(f"No such file: '{audio_path}'")
+    if not audio_path.is_file():
+        raise typer.BadParameter(f"Input path is not a file: '{audio_path}'")
+    # Normalize configured extensions to dot-prefixed lowercase
+    # (e.g., 'MP3' -> '.mp3', 'wav' -> '.wav')
+    allowed_exts = {
+        (ext if ext.startswith(".") else f".{ext}").lower()
+        for ext in DEFAULT_ACCEPTED_INPUT_EXTS
+        if ext
+    }
+    suffix = audio_path.suffix.lower()
+    if suffix not in allowed_exts:
+        allowed_str = ", ".join(sorted(allowed_exts))
+        raise typer.BadParameter(
+            "Unsupported input file type. Accepted audio/video extensions: "
+            f"{allowed_str}"
+        )
+
     # Handle device_index
-    idx: Any
+    idx: object
     if device_index is None:
         idx = None
     else:
@@ -143,7 +177,7 @@ def run_transcribe(
             idx = idx[0]
 
     # Init model
-    init_kwargs: Dict[str, Any] = {
+    init_kwargs: dict[str, object] = {
         "device": device,
         "compute_type": compute_type,
         "cpu_threads": cpu_threads,
@@ -156,12 +190,12 @@ def run_transcribe(
 
     model_obj = load_whisper_model(
         model,
-        _WhisperModel=whisper_model_hook,
+        _whisper_model=whisper_model_hook,
         **init_kwargs,
     )
 
     # Assemble transcribe kwargs
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, object] = {
         "language": language,
         "task": task,
         "beam_size": beam_size,
@@ -190,7 +224,7 @@ def run_transcribe(
         try:
             kwargs["vad_parameters"] = json.loads(vad_parameters)
         except json.JSONDecodeError as e:
-            raise typer.BadParameter(f"Invalid JSON for --vad-parameters: {e}")
+            raise typer.BadParameter(f"Invalid JSON for --vad-parameters: {e}") from e
 
     # Merge pass-through opts
     kwargs.update(parse_key_value_options(opt))
@@ -205,11 +239,12 @@ def run_transcribe(
     segments, info = model_obj.transcribe(str(audio_path), **filtered_kwargs)
 
     # Resolve destination path if output is set (default is stdout)
-    dest_path: Optional[Path]
+    dest_path: Path | None
     if output is None:
         dest_path = None
     else:
-        # Decide whether 'output' is a directory-like path (no suffix or ends with slash)
+        # Decide whether 'output' is directory-like
+        # (no suffix or ends with slash)
         ext_map = {"plain": ".txt", "jsonl": ".jsonl", "srt": ".srt", "vtt": ".vtt"}
         out_str = str(output)
         if out_str == "-":
@@ -235,7 +270,8 @@ def run_transcribe(
                 header += f" Prob: {round(float(prob), 3)}"
         console.print(header)
 
-    # If writing to stdout in a non-interactive context, disable progress to avoid corrupting output
+    # If writing to stdout in a non-interactive context, disable progress to
+    # avoid corrupting output
     if dest_path is None and show_progress and not sys.stdout.isatty():
         show_progress = False
 
@@ -332,7 +368,7 @@ def run_transcribe(
                         count += 1
                         if max_segments >= 0 and count >= max_segments:
                             break
-                console.print(f"Saved transcript to {dest_path}")
+                console.print(f"Saved transcript to '{dest_path}'")
         elif output_format == "jsonl":
             if dest_path is None:
                 for i, seg in enumerate(segments, 1):
@@ -363,79 +399,59 @@ def run_transcribe(
                         count += 1
                         if max_segments >= 0 and count >= max_segments:
                             break
-                console.print(f"Saved transcript to {dest_path}")
+                console.print(f"Saved transcript to '{dest_path}'")
         elif output_format == "srt":
+            # Collect segments first (for formatting & refinement)
+            seg_list = []
+            for i, seg in enumerate(segments, 1):
+                if show_progress:
+                    if use_segments_total:
+                        _progress_segments(i)
+                    elif has_duration_total:
+                        _progress_duration(seg.end)
+                    else:
+                        _progress_spinner(i)
+                seg_list.append(seg)
+                count += 1
+                if max_segments >= 0 and count >= max_segments:
+                    break
+
+            cues = build_cues_from_segments(seg_list)
+            cues = refine_cues(cues)
+            content = _format_srt(cues)
+
             if dest_path is None:
-                idx_num = 1
-                for i, seg in enumerate(segments, 1):
-                    if show_progress:
-                        if use_segments_total:
-                            _progress_segments(i)
-                        elif has_duration_total:
-                            _progress_duration(seg.end)
-                        else:
-                            _progress_spinner(i)
-                    start = format_timestamp(seg.start)
-                    end = format_timestamp(seg.end)
-                    console.print(f"{idx_num}\n{start} --> {end}\n{seg.text}\n")
-                    idx_num += 1
-                    count += 1
-                    if max_segments >= 0 and count >= max_segments:
-                        break
+                console.print(content.rstrip("\n"))
             else:
                 with dest_path.open("w", encoding="utf-8") as f:
-                    idx_num = 1
-                    for i, seg in enumerate(segments, 1):
-                        if show_progress:
-                            if use_segments_total:
-                                _progress_segments(i)
-                            elif has_duration_total:
-                                _progress_duration(seg.end)
-                            else:
-                                _progress_spinner(i)
-                        start = format_timestamp(seg.start)
-                        end = format_timestamp(seg.end)
-                        f.write(f"{idx_num}\n{start} --> {end}\n{seg.text}\n\n")
-                        idx_num += 1
-                        count += 1
-                        if max_segments >= 0 and count >= max_segments:
-                            break
-                console.print(f"Saved transcript to {dest_path}")
+                    f.write(content)
+                console.print(f"Saved transcript to '{dest_path}'")
         elif output_format == "vtt":
+            # Collect segments first
+            seg_list = []
+            for i, seg in enumerate(segments, 1):
+                if show_progress:
+                    if use_segments_total:
+                        _progress_segments(i)
+                    elif has_duration_total:
+                        _progress_duration(seg.end)
+                    else:
+                        _progress_spinner(i)
+                seg_list.append(seg)
+                count += 1
+                if max_segments >= 0 and count >= max_segments:
+                    break
+
+            cues = build_cues_from_segments(seg_list)
+            cues = refine_cues(cues)
+            content = _format_vtt(cues)
+
             if dest_path is None:
-                console.print("WEBVTT\n")
-                for i, seg in enumerate(segments, 1):
-                    if show_progress:
-                        if use_segments_total:
-                            _progress_segments(i)
-                        elif has_duration_total:
-                            _progress_duration(seg.end)
-                        else:
-                            _progress_spinner(i)
-                    start = format_timestamp(seg.start).replace(",", ".")
-                    end = format_timestamp(seg.end).replace(",", ".")
-                    console.print(f"{start} --> {end}\n{seg.text}\n")
-                    count += 1
-                    if max_segments >= 0 and count >= max_segments:
-                        break
+                console.print(content.rstrip("\n"))
             else:
                 with dest_path.open("w", encoding="utf-8") as f:
-                    f.write("WEBVTT\n\n")
-                    for i, seg in enumerate(segments, 1):
-                        if show_progress:
-                            if use_segments_total:
-                                _progress_segments(i)
-                            elif has_duration_total:
-                                _progress_duration(seg.end)
-                            else:
-                                _progress_spinner(i)
-                        start = format_timestamp(seg.start).replace(",", ".")
-                        end = format_timestamp(seg.end).replace(",", ".")
-                        f.write(f"{start} --> {end}\n{seg.text}\n\n")
-                        count += 1
-                        if max_segments >= 0 and count >= max_segments:
-                            break
-                console.print(f"Saved transcript to {dest_path}")
+                    f.write(content)
+                console.print(f"Saved transcript to '{dest_path}'")
         else:
             raise typer.BadParameter(
                 "Unsupported format. Choose from plain|jsonl|srt|vtt"

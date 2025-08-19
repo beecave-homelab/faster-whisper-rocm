@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from glob import glob
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -19,14 +19,14 @@ from faster_whisper_rocm.cli.commands.install_ctranslate2 import run_install_ctr
 from faster_whisper_rocm.cli.commands.model_info import run_model_info
 from faster_whisper_rocm.cli.commands.transcribe import run_transcribe
 from faster_whisper_rocm.models.whisper import WhisperModel
+from faster_whisper_rocm.utils import constant as const
 
 app = typer.Typer(help="faster_whisper_rocm command-line interface")
 console = Console()
 
-# Expose WhisperModel on the Typer app object so tests can monkeypatch
-# `faster_whisper_rocm.cli.app.WhisperModel` reliably.
-setattr(app, "WhisperModel", WhisperModel)
-setattr(app, "glob", glob)
+# Expose hooks on the Typer app object so tests can monkeypatch reliably
+app.WhisperModel = WhisperModel
+app.glob = glob
 
 
 def version_callback(value: bool) -> None:
@@ -34,6 +34,10 @@ def version_callback(value: bool) -> None:
 
     Args:
         value: Whether the ``--version`` flag was provided.
+
+    Raises:
+        typer.Exit: If the version was requested and the program should
+            terminate after printing it.
     """
     if value:
         console.print(f"faster_whisper_rocm {__version__}")
@@ -43,13 +47,16 @@ def version_callback(value: bool) -> None:
 @app.callback()
 def main(
     ctx: typer.Context,
-    _version: Optional[bool] = typer.Option(  # noqa: UP007 - Optional for clarity in help
-        None,
-        "--version",
-        callback=version_callback,
-        is_eager=True,
-        help="Show the version and exit.",
-    ),
+    _version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            is_flag=True,
+            callback=version_callback,
+            is_eager=True,
+            help="Show the version and exit.",
+        ),
+    ] = None,  # noqa: UP007 - Optional for clarity in help
 ) -> None:
     """Root command callback.
 
@@ -64,14 +71,24 @@ def main(
 
 @app.command("install-ctranslate2")
 def install_ctranslate2(
-    wheel: Optional[Path] = typer.Option(
-        None,
-        "--wheel",
-        help="Path to a CTranslate2 ROCm wheel (.whl). Defaults to newest in out/ctranslate2-*.whl",
-    ),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Show the command without running it."
-    ),
+    wheel: Annotated[
+        Path | None,
+        typer.Option(
+            "--wheel",
+            help=(
+                "Path to a CTranslate2 ROCm wheel (.whl). "
+                "Defaults to newest in out/ctranslate2-*.whl"
+            ),
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            is_flag=True,
+            help="Show the command without running it.",
+        ),
+    ] = False,
 ) -> None:
     """Install the ROCm CTranslate2 wheel.
 
@@ -83,26 +100,40 @@ def install_ctranslate2(
 
 @app.command("model-info")
 def model_info(
-    model: str = typer.Option(
-        "Systran/faster-whisper-medium", "--model", help="Model name or local path"
-    ),
-    device: str = typer.Option("cuda", help="Device to run on (e.g., cuda, cpu)"),
-    compute_type: str = typer.Option(
-        "float16",
-        help="Computation type: int8, int8_float16, float16, float32, etc.",
-    ),
-    device_index: Optional[str] = typer.Option(
-        None,
-        help="Device index or comma-separated list (e.g., 0 or 0,1)",
-    ),
-    cpu_threads: int = typer.Option(0, help="Number of CPU threads to use (0=auto)"),
-    num_workers: int = typer.Option(1, help="Number of loader workers"),
-    download_root: Optional[Path] = typer.Option(
-        None, help="Custom download directory for models"
-    ),
-    local_files_only: bool = typer.Option(
-        False, help="Only use local files, do not attempt downloads"
-    ),
+    model: Annotated[
+        str,
+        typer.Option("--model", help="Model name or local path"),
+    ] = "Systran/faster-whisper-medium",
+    device: Annotated[
+        str,
+        typer.Option(help="Device to run on (e.g., cuda, cpu)"),
+    ] = "cuda",
+    compute_type: Annotated[
+        str,
+        typer.Option(
+            help=("Computation type: int8, int8_float16, float16, float32, etc.")
+        ),
+    ] = "float16",
+    device_index: Annotated[
+        str | None,
+        typer.Option(help="Device index or comma-separated list (e.g., 0 or 0,1)"),
+    ] = None,
+    cpu_threads: Annotated[
+        int,
+        typer.Option(help="Number of CPU threads to use (0=auto)"),
+    ] = 0,
+    num_workers: Annotated[
+        int,
+        typer.Option(help="Number of loader workers"),
+    ] = 1,
+    download_root: Annotated[
+        Path | None,
+        typer.Option(help="Custom download directory for models"),
+    ] = None,
+    local_files_only: Annotated[
+        bool,
+        typer.Option(help="Only use local files, do not attempt downloads"),
+    ] = False,
 ) -> None:
     """Print model configuration.
 
@@ -126,96 +157,182 @@ def model_info(
 
 @app.command("transcribe")
 def transcribe(
-    audio_path: Path = typer.Argument(..., exists=True, help="Path to audio file"),
+    audio_path: Annotated[Path, typer.Argument(exists=True, help="Path to audio file")],
     # Model init options
-    model: str = typer.Option(
-        "Systran/faster-whisper-medium", "--model", help="Model name or local path"
-    ),
-    device: str = typer.Option("cuda", help="Device to run on (e.g., cuda, cpu)"),
-    compute_type: str = typer.Option(
-        "float16",
-        help="Computation type: int8, int8_float16, float16, float32, etc.",
-    ),
-    device_index: Optional[str] = typer.Option(
-        None,
-        help="Device index or comma-separated list (e.g., 0 or 0,1)",
-    ),
-    cpu_threads: int = typer.Option(0, help="Number of CPU threads to use (0=auto)"),
-    num_workers: int = typer.Option(1, help="Number of loader workers"),
-    download_root: Optional[Path] = typer.Option(
-        None, help="Custom download directory for models"
-    ),
-    local_files_only: bool = typer.Option(
-        False, help="Only use local files, do not attempt downloads"
-    ),
+    model: Annotated[
+        str,
+        typer.Option("--model", help="Model name or local path"),
+    ] = const.DEFAULT_MODEL,
+    device: Annotated[
+        str,
+        typer.Option(help="Device to run on (e.g., cuda, cpu)"),
+    ] = const.DEFAULT_DEVICE,
+    compute_type: Annotated[
+        str,
+        typer.Option(
+            help="Computation type: int8, int8_float16, float16, float32, etc.",
+        ),
+    ] = const.DEFAULT_COMPUTE_TYPE,
+    device_index: Annotated[
+        str | None,
+        typer.Option(help="Device index or comma-separated list (e.g., 0 or 0,1)"),
+    ] = const.DEFAULT_DEVICE_INDEX,
+    cpu_threads: Annotated[
+        int,
+        typer.Option(help="Number of CPU threads to use (0=auto)"),
+    ] = const.DEFAULT_CPU_THREADS,
+    num_workers: Annotated[
+        int,
+        typer.Option(help="Number of loader workers"),
+    ] = const.DEFAULT_NUM_WORKERS,
+    download_root: Annotated[
+        Path | None,
+        typer.Option(help="Custom download directory for models"),
+    ] = const.DEFAULT_DOWNLOAD_ROOT,
+    local_files_only: Annotated[
+        bool,
+        typer.Option(help="Only use local files, do not attempt downloads"),
+    ] = const.DEFAULT_LOCAL_FILES_ONLY,
     # Transcribe options
-    language: Optional[str] = typer.Option(None, help="Language code (e.g., en)"),
-    task: str = typer.Option("transcribe", help="Task: transcribe or translate"),
-    beam_size: int = typer.Option(1, help="Beam size for beam search"),
-    best_of: Optional[int] = typer.Option(
-        None, help="Number of candidates when sampling"
-    ),
-    patience: Optional[float] = typer.Option(None, help="Beam search patience"),
-    length_penalty: Optional[float] = typer.Option(None, help="Length penalty"),
-    temperature: float = typer.Option(0.0, help="Temperature for sampling"),
-    temperature_increment_on_fallback: float = typer.Option(
-        0.2, help="Temperature increase on fallback"
-    ),
-    compression_ratio_threshold: Optional[float] = typer.Option(
-        None, help="Compression ratio threshold"
-    ),
-    log_prob_threshold: Optional[float] = typer.Option(
-        None, help="Average log prob threshold"
-    ),
-    no_speech_threshold: Optional[float] = typer.Option(
-        None, help="No speech probability threshold"
-    ),
-    condition_on_previous_text: bool = typer.Option(
-        True, help="Condition on previous text"
-    ),
-    initial_prompt: Optional[str] = typer.Option(
-        None, help="Optional initial prompt to condition the model"
-    ),
-    prefix: Optional[str] = typer.Option(None, help="Optional prefix text"),
-    suppress_blank: bool = typer.Option(True, help="Suppress blank outputs"),
-    suppress_tokens: Optional[str] = typer.Option(
-        None, help="Tokens to suppress (e.g., -1 or comma-separated list)"
-    ),
-    without_timestamps: bool = typer.Option(False, help="Disable timestamps"),
-    max_initial_timestamp: float = typer.Option(1.0, help="Max initial timestamp"),
-    word_timestamps: bool = typer.Option(False, help="Enable word timestamps"),
-    prepend_punctuations: str = typer.Option(
-        "“¿([{-", help="Punctuations to prepend to next word"
-    ),
-    append_punctuations: str = typer.Option(
-        "”.:;?!)}]", help="Punctuations to append to previous word"
-    ),
-    vad_filter: bool = typer.Option(True, help="Enable VAD filtering"),
-    vad_parameters: Optional[str] = typer.Option(
-        None, help="JSON dict for VAD parameters"
-    ),
+    language: Annotated[
+        str | None,
+        typer.Option(help="Language code (e.g., en)"),
+    ] = const.DEFAULT_LANGUAGE,
+    task: Annotated[
+        str,
+        typer.Option(help="Task: transcribe or translate"),
+    ] = const.DEFAULT_TASK,
+    beam_size: Annotated[
+        int,
+        typer.Option(help="Beam size for beam search"),
+    ] = const.DEFAULT_BEAM_SIZE,
+    best_of: Annotated[
+        int | None,
+        typer.Option(help="Number of candidates when sampling"),
+    ] = const.DEFAULT_BEST_OF,
+    patience: Annotated[
+        float | None,
+        typer.Option(help="Beam search patience"),
+    ] = const.DEFAULT_PATIENCE,
+    length_penalty: Annotated[
+        float | None,
+        typer.Option(help="Length penalty"),
+    ] = const.DEFAULT_LENGTH_PENALTY,
+    temperature: Annotated[
+        float,
+        typer.Option(help="Temperature for sampling"),
+    ] = const.DEFAULT_TEMPERATURE,
+    temperature_increment_on_fallback: Annotated[
+        float,
+        typer.Option(help="Temperature increase on fallback"),
+    ] = const.DEFAULT_TEMPERATURE_INCREMENT_ON_FALLBACK,
+    compression_ratio_threshold: Annotated[
+        float | None,
+        typer.Option(help="Compression ratio threshold"),
+    ] = const.DEFAULT_COMPRESSION_RATIO_THRESHOLD,
+    log_prob_threshold: Annotated[
+        float | None,
+        typer.Option(help="Average log prob threshold"),
+    ] = const.DEFAULT_LOG_PROB_THRESHOLD,
+    no_speech_threshold: Annotated[
+        float | None,
+        typer.Option(help="No speech probability threshold"),
+    ] = const.DEFAULT_NO_SPEECH_THRESHOLD,
+    condition_on_previous_text: Annotated[
+        bool,
+        typer.Option(help="Condition on previous text"),
+    ] = const.DEFAULT_CONDITION_ON_PREVIOUS_TEXT,
+    initial_prompt: Annotated[
+        str | None,
+        typer.Option(help="Optional initial prompt to condition the model"),
+    ] = const.DEFAULT_INITIAL_PROMPT,
+    prefix: Annotated[
+        str | None,
+        typer.Option(help="Optional prefix text"),
+    ] = const.DEFAULT_PREFIX,
+    suppress_blank: Annotated[
+        bool,
+        typer.Option(help="Suppress blank outputs"),
+    ] = const.DEFAULT_SUPPRESS_BLANK,
+    suppress_tokens: Annotated[
+        str | None,
+        typer.Option(help="Tokens to suppress (e.g., -1 or comma-separated list)"),
+    ] = const.DEFAULT_SUPPRESS_TOKENS,
+    without_timestamps: Annotated[
+        bool,
+        typer.Option(help="Disable timestamps"),
+    ] = const.DEFAULT_WITHOUT_TIMESTAMPS,
+    max_initial_timestamp: Annotated[
+        float,
+        typer.Option(help="Max initial timestamp"),
+    ] = const.DEFAULT_MAX_INITIAL_TIMESTAMP,
+    word_timestamps: Annotated[
+        bool,
+        typer.Option(help="Enable word timestamps"),
+    ] = const.DEFAULT_WORD_TIMESTAMPS,
+    prepend_punctuations: Annotated[
+        str,
+        typer.Option(help="Punctuations to prepend to next word"),
+    ] = const.DEFAULT_PREPEND_PUNCTUATIONS,
+    append_punctuations: Annotated[
+        str,
+        typer.Option(help="Punctuations to append to previous word"),
+    ] = const.DEFAULT_APPEND_PUNCTUATIONS,
+    vad_filter: Annotated[
+        bool,
+        typer.Option(help="Enable VAD filtering"),
+    ] = const.DEFAULT_VAD_FILTER,
+    vad_parameters: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "JSON dict for VAD parameters. "
+                "See https://github.com/snakers4/silero-vad#parameters for details."
+            ),
+        ),
+    ] = const.DEFAULT_VAD_PARAMETERS,
     # Output control
-    output_format: str = typer.Option(
-        "plain", help="Output format: plain|jsonl|srt|vtt"
-    ),
-    output: Optional[Path] = typer.Option(
-        Path("data/transcripts"),
-        "--output",
-        help="Output file path or directory. Defaults to 'data/transcripts'. If a dir or path without extension is given, the filename is derived from the audio. Use '-' for stdout.",
-    ),
-    max_segments: int = typer.Option(
-        -1, help="Maximum number of segments to print (-1 for all)"
-    ),
-    print_language: bool = typer.Option(True, help="Print detected language"),
-    print_prob: bool = typer.Option(True, help="Print language probability"),
-    show_progress: bool = typer.Option(
-        True,
-        "--show-progress/--no-progress",
-        help="Show live progress (number of segments processed)",
-    ),
-    opt: List[str] = typer.Option(
-        [], "--opt", help="Extra transcribe options as key=value (repeatable)"
-    ),
+    output_format: Annotated[
+        str,
+        typer.Option(help="Output format: plain|jsonl|srt|vtt"),
+    ] = const.DEFAULT_OUTPUT_FORMAT,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            help=(
+                "Output file path or directory. Defaults to 'data/transcripts'. "
+                "If a dir or path without extension is given, the filename is "
+                "derived from the audio. Use '-' for stdout."
+            ),
+        ),
+    ] = const.DEFAULT_OUTPUT,
+    max_segments: Annotated[
+        int,
+        typer.Option(help="Maximum number of segments to print (-1 for all)"),
+    ] = const.DEFAULT_MAX_SEGMENTS,
+    print_language: Annotated[
+        bool,
+        typer.Option(help="Print detected language"),
+    ] = const.DEFAULT_PRINT_LANGUAGE,
+    print_prob: Annotated[
+        bool,
+        typer.Option(help="Print language probability"),
+    ] = const.DEFAULT_PRINT_PROB,
+    show_progress: Annotated[
+        bool,
+        typer.Option(
+            "--show-progress/--no-progress",
+            help=("Show live progress (number of segments processed)"),
+        ),
+    ] = const.DEFAULT_SHOW_PROGRESS,
+    opt: Annotated[
+        list[str],
+        typer.Option(
+            "--opt",
+            help=("Extra transcribe options as key=value (repeatable)"),
+        ),
+    ] = const.DEFAULT_OPT,
 ) -> None:
     """Transcribe an audio file.
 

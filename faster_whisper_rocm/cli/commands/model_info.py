@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 from rich.console import Console
 
@@ -23,10 +22,10 @@ def run_model_info(
     model: str,
     device: str,
     compute_type: str,
-    device_index: Optional[str],
+    device_index: str | None,
     cpu_threads: int,
     num_workers: int,
-    download_root: Optional[Path],
+    download_root: Path | None,
     local_files_only: bool,
 ) -> None:
     """Load a model and print its configuration.
@@ -44,6 +43,9 @@ def run_model_info(
         num_workers: The number of workers for data loading.
         download_root: A custom directory to download models to.
         local_files_only: If True, only use local files and do not download.
+
+    Raises:
+        SystemExit: If the WhisperModel backend is unavailable (exit code 1).
     """
     # Resolve WhisperModel hook from the main app (for tests)
     try:
@@ -53,7 +55,12 @@ def run_model_info(
     except (ImportError, AttributeError):  # pragma: no cover - fallback
         whisper_model_hook = None
 
-    idx: Any
+    # If the test hook indicates WhisperModel is unavailable, abort early.
+    if whisper_model_hook is None:
+        console.print("WhisperModel backend is not available.", style="bold red")
+        raise SystemExit(1)
+
+    idx: object
     if device_index is None:
         idx = None
     else:
@@ -61,7 +68,7 @@ def run_model_info(
         if len(idx) == 1:
             idx = idx[0]
 
-    init_kwargs: Dict[str, Any] = {
+    init_kwargs: dict[str, object] = {
         "device": device,
         "compute_type": compute_type,
         "cpu_threads": cpu_threads,
@@ -78,16 +85,14 @@ def run_model_info(
         **init_kwargs,
     )
 
-    console.print(
-        {
-            "model": model,
-            "device": device,
-            "compute_type": compute_type,
-            "device_index": idx,
-            "cpu_threads": cpu_threads,
-            "num_workers": num_workers,
-            "download_root": str(download_root) if download_root else None,
-            "local_files_only": local_files_only,
-            "backend": type(model_obj).__name__,
-        }
-    )
+    console.print({
+        "model": model,
+        "device": device,
+        "compute_type": compute_type,
+        "device_index": idx,
+        "cpu_threads": cpu_threads,
+        "num_workers": num_workers,
+        "download_root": str(download_root) if download_root else None,
+        "local_files_only": local_files_only,
+        "backend": type(model_obj).__name__,
+    })
