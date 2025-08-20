@@ -44,20 +44,22 @@ This guide explains how we set up and use a ROCm-enabled CTranslate2 build for t
    pdm run python -c "import ctranslate2; print('OK', ctranslate2.__version__, 'from', ctranslate2.__file__)"
    ```
 
-## Option B — Build from source (Docker; targets GFX1030)
+## Option B — Build from source (Docker Compose; default)
 
-We provide a Dockerfile that builds CTranslate2 with ROCm for `gfx1030` and exports artifacts to `out/`.
+We provide a Compose setup that builds CTranslate2 with ROCm and exports artifacts to `out/`.
 
 ```bash
-# Build the image
-docker build -f docker_rocm/Dockerfile.rocm -t ct2-rocm-gfx1030 .
+# From repo root, use the compose file in docker_rocm/
+cd docker_rocm/
 
-# Export artifacts (wheel + ctranslate2_root) to host ./out
-mkdir -p out
-docker run --rm -v "$(pwd)/out:/out" ct2-rocm-gfx1030
+# Build (defaults to GPU_ARCHS=gfx1030; override below)
+docker compose build
+
+# Run the export step (copies wheel + ctranslate2_root to ../out)
+docker compose run --rm ct2
 ```
 
-After running the container, you should have:
+After running, you should have in the repository root:
 
 - `out/ctranslate2-<ver>-*.whl` (Python wheel)
 - `out/ctranslate2_root/` (installed libs, e.g., `libctranslate2.so.3`)
@@ -73,8 +75,18 @@ pdm run faster-whisper-rocm install-ctranslate2 --wheel out/ctranslate2-3.23.0-*
 
 Notes:
 
-- The image’s default command copies artifacts to `/out`. Mount your host `./out` to `/out` as shown above.
-- You can use `out/ctranslate2_root/lib/libctranslate2.so.3` with the vendor script if needed.
+- The container’s default command copies artifacts to `/out`. The compose file maps `../out` (repo root) to `/out`.
+- Override GPU architectures at build time, e.g.: `docker compose build --build-arg GPU_ARCHS=gfx90a`.
+- The `GPU_ARCHS` default is `gfx1030` and can be edited in `docker_rocm/docker-compose.yaml`.
+- If you don’t have Buildx installed and see a warning, you can still proceed or install the Buildx plugin for best performance.
+
+Alternative (plain Docker build):
+
+```bash
+docker build -f docker_rocm/Dockerfile.rocm -t ct2-rocm-gfx1030 .
+mkdir -p out
+docker run --rm -v "$(pwd)/out:/out" ct2-rocm-gfx1030
+```
 
 ## Option C — Native build from source (advanced)
 

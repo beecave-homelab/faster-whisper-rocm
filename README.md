@@ -119,7 +119,7 @@ The CLI wraps `faster-whisper` with ROCm-enabled CTranslate2. It exposes a fully
   pdm run faster-whisper-rocm install-ctranslate2 --wheel out/ctranslate2-3.23.0-cp310-cp310-linux_x86_64.whl
   ```
 
-1. Transcribe audio (plain, jsonl, srt, or vtt output):
+1. Transcribe audio (txt, jsonl, srt, or vtt output):
 
   ```bash
   pdm run faster-whisper-rocm transcribe data/samples/test_long.wav \
@@ -128,7 +128,7 @@ The CLI wraps `faster-whisper` with ROCm-enabled CTranslate2. It exposes a fully
     --compute-type float16 \
     --beam-size 1 \
     --vad-filter \
-    --output-format plain \
+    --output-format txt \
     --max-segments 10
   ```
 
@@ -156,7 +156,7 @@ Common options (subset; use `--help` for full list):
   --word-timestamps                   # word-level timestamps
   --vad-filter                        # enable VAD
   --vad-parameters '{"min_silence_duration_ms": 500}'
-  --output-format plain|jsonl|srt|vtt # output format
+  --output-format txt|jsonl|srt|vtt # output format
   --output PATH                       # file or directory (default: data/transcripts/); use '-' for stdout
   --max-segments -1                   # number of segments to print; -1 = unlimited (default)
   --show-progress / --no-progress     # live segment count while transcribing (default: show)
@@ -168,6 +168,39 @@ Inspect model/device settings:
 ```bash
 pdm run faster-whisper-rocm model-info --model Systran/faster-whisper-medium --device cuda --compute-type float16
 ```
+
+## Hugging Face Cache Manager (Rich output)
+
+A lightweight CLI at `scripts/hf_models.py` helps manage your local Hugging Face
+cache with pretty, colorized tables using Rich. It auto-expands to your terminal
+width, shows visible borders, and color-codes repo type and detected framework.
+
+Quick examples:
+
+```bash
+# List cached repos (compact default view)
+python scripts/hf_models.py list
+
+# Minimal columns (repo_id, type, size)
+python scripts/hf_models.py list --less
+
+# Full details (all columns)
+python scripts/hf_models.py list --more
+
+# JSON output for scripting
+python scripts/hf_models.py list --json
+
+# Preview cleanup candidates older than 30 days (no deletion)
+python scripts/hf_models.py cleanup 30 --dry-run
+```
+
+Notes:
+
+- Filter by type: `--repo-type model|dataset|space|all`
+- Default view is compact; use `--more` for full details, or `--less` for the
+  smallest table.
+- Env-based cache resolution precedence: `HF_HUB_CACHE` > `HF_HOME/hub` >
+  `XDG_CACHE_HOME/huggingface/hub` > `~/.cache/huggingface/hub`
 
 ## License
 

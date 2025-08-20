@@ -60,7 +60,7 @@ This repository provides a Typer-based Python CLI with ROCm-accelerated speech t
   - `transcribe` options:
     - Model init options mirror `WhisperModel(...)`
     - Transcription options mirror `.transcribe(...)` including VAD and decoding controls
-    - Output control: `--output-format plain|jsonl|srt|vtt`, `--output PATH` (default dir: `data/transcripts/`; accepts directory or file path), `--max-segments` (default: -1 = unlimited), `--print-language`, `--print-prob`, `--show-progress/--no-progress` (default: show; auto-disables on non-TTY stdout)
+    - Output control: `--output-format txt|jsonl|srt|vtt`, `--output PATH` (default dir: `data/transcripts/`; accepts directory or file path), `--max-segments` (default: -1 = unlimited), `--print-language`, `--print-prob`, `--show-progress/--no-progress` (default: show; auto-disables on non-TTY stdout)
     - Progress behavior:
       - When `--max-segments > 0`, the progress bar is segment-based with a known total; transcription stops exactly after `max_segments` segments.
       - Otherwise, if the input duration is known, a duration-based progress bar is shown.
@@ -71,12 +71,85 @@ This repository provides a Typer-based Python CLI with ROCm-accelerated speech t
       - Video: `.mp4, .mkv, .mov, .avi, .webm, .mpeg, .mpg, .m4v, .ts, .m2ts, .wmv, .flv, .3gp`
       - Any other type (e.g., `.srt`, `.vtt`, `.txt`, `.pdf`) is rejected with a clear `BadParameter` error.
 
-### Model Loading
+## Hugging Face Cache Manager (scripts/hf_models.py) — Developer Notes
+
+This repository includes a standalone utility script to manage the local Hugging
+Face cache with a polished Rich-based CLI.
+
+- Location: `scripts/hf_models.py`
+- Dependencies: `typer`, `huggingface_hub`, `rich`
+- Run:
+
+  ```bash
+  # Direct
+  python scripts/hf_models.py --help
+
+  # Via PDM
+  pdm run python scripts/hf_models.py list
+  ```
+
+### What it does
+
+- `list`: Scans the effective HF cache and prints repositories.
+  - Default: pretty Rich table with visible borders, auto-expanding to terminal
+    width.
+  - JSON mode: `--json` prints machine-readable JSON (stable field names).
+  - Fields: `repo_id`, `type`, `framework` (best-effort detection), `size`,
+    `nb_files`, `last_accessed`, `last_modified`, `path`, `revisions`.
+  - Filters: `--repo-type model|dataset|space|all`, `--contains <substring>`.
+  - Display modes:
+    - Default (compact): `repo_id`, `type`, `framework`, `size`, `files`,
+      `last_accessed`.
+    - `--more` (extended): adds `last_modified`, `path`, and `revisions`.
+    - `--less` (minimal): `repo_id`, `type`, `size`.
+
+- `cleanup <days>`: Marks repos not accessed in the last N days.
+  - Default: `--dry-run` shows a Rich table with expected freed size; does not
+    delete.
+  - Sorting: oldest access first.
+
+- `remove <repo_id>`: Deletes all cached revisions for a repo (with type).
+  - `--dry-run` prints what would be freed; `-y` skips confirmation.
+
+- `cache-dir` group: Show/set/unset `HF_HUB_CACHE` in the project `.env`.
+- `project` group: Show/set/unset project download root in `.env` via
+  `FWR_TRANSCRIBE_DOWNLOAD_ROOT`.
+
+### Rich styling
+
+- Uses `box.SQUARE`, `expand=True`, and `header_style="bold"` for clear tables.
+- Colors:
+  - Repo type: model=cyan, dataset=magenta, space=blue (`_style_repo_type`).
+  - Framework: pytorch=red, tensorflow=yellow, flax=green, onnx=bright_cyan,
+    ctranslate2=bright_magenta, unknown=dim (`_style_framework`).
+- Less important columns (`path`, `revisions`) are dimmed; long values fold
+  (`overflow="fold"`) on `repo_id`, `path`, and `revisions`.
+
+### Framework detection
+
+- `_detect_model_framework(snapshot_dir)` inspects the latest snapshot directory
+  for heuristics: PyTorch safetensors/bin, TensorFlow `.h5`, Flax `.msgpack`,
+  ONNX `.onnx`, and CTranslate2 patterns (`model.bin` + index/vocabulary files).
+  Falls back to `unknown`.
+
+### Exit codes and scripting
+
+- JSON mode keeps output stable for automation.
+- Exit code `0` with a message when there are no items/candidates (safe for
+  CI). Non-zero codes are used for validation/HTTP/IO errors in `pull`.
+
+### Extending the table
+
+- Add a new column in `list_cached()` and update each `table.add_row(...)` call.
+- Keep lines ≤ 88 chars; prefer breaking args across lines.
+- Place helpers above usage (e.g., `_style_*` before `list_cached`).
+
+## Model Loading
 
 - Model instantiation is delegated to `faster_whisper_rocm/models/whisper.py` via `load_whisper_model()`.
 - The CLI exposes a test hook `app.WhisperModel` which defaults to the imported `WhisperModel` (or `None` if not installed). Tests can monkeypatch `faster_whisper_rocm.cli.app.WhisperModel` to inject fakes. The CLI passes this hook into the loader.
 
-### Environment-driven configuration
+## Environment-driven configuration
 
 - Centralized env loading happens in `faster_whisper_rocm/utils/env_loader.py` via `load_project_env()`. It is called exactly once from `faster_whisper_rocm/utils/constant.py` at import time and is idempotent.
 - All transcribe CLI defaults are exposed as typed `DEFAULT_*` constants in `faster_whisper_rocm/utils/constant.py` and read from environment variables prefixed with `FWR_TRANSCRIBE_`.
@@ -116,7 +189,7 @@ pdm run faster-whisper-rocm transcribe data/samples/test_long.wav \
   --compute-type float16 \
   --beam-size 1 \
   --vad-filter \
-  --output-format plain \
+  --output-format txt \
   --show-progress \
   --max-segments 10
 ```
