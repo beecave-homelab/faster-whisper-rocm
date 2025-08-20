@@ -294,7 +294,7 @@ def transcribe(
     # Output control
     output_format: Annotated[
         str,
-        typer.Option(help="Output format: plain|jsonl|srt|vtt"),
+        typer.Option(help="Output format: txt|jsonl|srt|vtt"),
     ] = const.DEFAULT_OUTPUT_FORMAT,
     output: Annotated[
         Path | None,

@@ -126,7 +126,7 @@ def run_transcribe(
         append_punctuations: Punctuations to append to the text.
         vad_filter: If True, apply VAD filter.
         vad_parameters: JSON string of VAD parameters.
-        output_format: Format for the output (plain, jsonl, srt, vtt).
+        output_format: Format for the output (txt, jsonl, srt, vtt).
         output: Path to the output file. If None, prints to stdout.
         max_segments: Maximum number of segments to transcribe.
         print_language: If True, print the detected language.
@@ -238,6 +238,10 @@ def run_transcribe(
 
     segments, info = model_obj.transcribe(str(audio_path), **filtered_kwargs)
 
+    # Normalize/alias output format (backward-compatibility for legacy 'plain')
+    if output_format == "plain":
+        output_format = "txt"
+
     # Resolve destination path if output is set (default is stdout)
     dest_path: Path | None
     if output is None:
@@ -245,7 +249,7 @@ def run_transcribe(
     else:
         # Decide whether 'output' is directory-like
         # (no suffix or ends with slash)
-        ext_map = {"plain": ".txt", "jsonl": ".jsonl", "srt": ".srt", "vtt": ".vtt"}
+        ext_map = {"txt": ".txt", "jsonl": ".jsonl", "srt": ".srt", "vtt": ".vtt"}
         out_str = str(output)
         if out_str == "-":
             dest_path = None
@@ -340,7 +344,7 @@ def run_transcribe(
             _progress_duration = _noop  # type: ignore[assignment]
             _progress_spinner = _noop  # type: ignore[assignment]
 
-        if output_format == "plain":
+        if output_format == "txt":
             if dest_path is None:
                 for i, seg in enumerate(segments, 1):
                     if show_progress:
@@ -454,5 +458,5 @@ def run_transcribe(
                 console.print(f"Saved transcript to '{dest_path}'")
         else:
             raise typer.BadParameter(
-                "Unsupported format. Choose from plain|jsonl|srt|vtt"
+                "Unsupported format. Choose from txt|jsonl|srt|vtt"
             )

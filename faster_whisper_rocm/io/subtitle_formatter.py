@@ -24,6 +24,7 @@ from faster_whisper_rocm.utils.constant import (
     DEFAULT_SUB_DISPLAY_BUFFER_SEC,
     DEFAULT_SUB_INTERJECTION_WHITELIST,
     DEFAULT_SUB_MAX_BLOCK_CHARS,
+    DEFAULT_SUB_MAX_CONSECUTIVE_REPEATS,
     DEFAULT_SUB_MAX_CPS,
     DEFAULT_SUB_MAX_LINE_CHARS,
     DEFAULT_SUB_MAX_SEGMENT_DURATION_SEC,
@@ -132,6 +133,122 @@ def _normalize_punctuation_spacing(text: str) -> str:
     return t.strip()
 
 
+# ---------------------------
+# Text cleanup (repetition, orphans)
+# ---------------------------
+
+
+def _strip_orphan_punctuation(text: str) -> str:
+    """Remove leading/trailing orphan punctuation and tidy commas.
+
+    Args:
+        text (str): Input text.
+
+    Returns:
+        str: Cleaned text with no leading commas/semicolons and no
+            punctuation-only strings.
+    """
+    t = text or ""
+    # Collapse multiple commas
+    t = re.sub(r",{2,}", ",", t)
+    # Remove leading commas/semicolon/colon
+    t = re.sub(r"^[\s,;:]+", "", t)
+    # Remove trailing commas
+    t = re.sub(r"[\s,;:]+$", "", t)
+    # If becomes punctuation-only, drop it
+    if re.fullmatch(r"[\s\W]*", t or ""):
+        return ""
+    return t.strip()
+
+
+def _collapse_repeated_words(text: str, limit: int) -> str:
+    """Collapse runs of the same word separated by commas/spaces.
+
+    Case-insensitive comparison; preserves the original casing of the
+    first occurrence and the comma-space rhythm.
+
+    Args:
+        text (str): Input text.
+        limit (int): Maximum allowed consecutive repeats of the same word.
+
+    Returns:
+        str: Text with repeated words clamped to the given limit.
+    """
+    if limit <= 0:
+        return text or ""
+    s = text or ""
+    # Tokenize into word / whitespace / punctuation tokens
+    tokens = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?|\s+|[^\w\s]", s)
+    out: list[str] = []
+    cur_word: str | None = None
+    cur_count = 0
+    sep_buf: list[str] = []  # pending separators between repeated words
+
+    def is_word(tok: str) -> bool:
+        return bool(re.fullmatch(r"[A-Za-z]+(?:'[A-Za-z]+)?", tok))
+
+    def is_soft_sep(tok: str) -> bool:
+        # Only spaces or commas count as soft separators inside a repetition run
+        return bool(re.fullmatch(r"\s+|,", tok))
+
+    for tok in tokens:
+        if is_word(tok):
+            low = tok.lower()
+            if cur_word is None:
+                # start new run
+                out.append(tok)
+                cur_word = low
+                cur_count = 1
+                sep_buf = []
+            elif low == cur_word and all(is_soft_sep(x) for x in sep_buf):
+                # same word separated only by commas/spaces => repetition
+                if cur_count < limit:
+                    out.extend(sep_buf)
+                    out.append(tok)
+                    cur_count += 1
+                # else: drop this occurrence and its separators
+                sep_buf = []
+            else:
+                # different word or hard separator seen in between
+                out.extend(sep_buf)
+                out.append(tok)
+                cur_word = low
+                cur_count = 1
+                sep_buf = []
+        elif tok.strip() == "":
+            # whitespace: buffer it; not a hard break for repetition
+            sep_buf.append(tok)
+        elif tok == ",":
+            # comma is a soft sep for repetition runs
+            sep_buf.append(tok)
+        else:
+            # hard punctuation ends repetition grouping
+            out.extend(sep_buf)
+            out.append(tok)
+            cur_word = None
+            cur_count = 0
+            sep_buf = []
+
+    # flush remaining separators
+    out.extend(sep_buf)
+    return "".join(out)
+
+
+def _sanitize_cue_text(text: str) -> str:
+    """Normalize spacing, collapse duplicates, and strip orphan punctuation.
+
+    Args:
+        text (str): Raw text.
+
+    Returns:
+        str: Cleaned text suitable for cue rendering.
+    """
+    t = _normalize_punctuation_spacing(text)
+    t = _collapse_repeated_words(t, DEFAULT_SUB_MAX_CONSECUTIVE_REPEATS)
+    t = _strip_orphan_punctuation(t)
+    return t
+
+
 # -----------
 # Core logic
 # -----------
@@ -189,10 +306,10 @@ def _split_segment_by_words(
             return
         start = cur_start if cur_start is not None else float(seg.start)
         end = float(cur_words[-1].end)
-        text = _normalize_punctuation_spacing(
-            " ".join(w.word for w in cur_words).strip()
-        )
-        cues.append(Cue(index=0, start=float(start), end=float(end), text=text))
+        raw_text = (" ".join(w.word for w in cur_words)).strip()
+        text = _sanitize_cue_text(raw_text)
+        if text:
+            cues.append(Cue(index=0, start=float(start), end=float(end), text=text))
         cur_words = []
         cur_start = None
 
@@ -204,8 +321,9 @@ def _split_segment_by_words(
         t_start = cur_start
         t_end = float(w.end)
         t_dur = max(0.0, t_end - float(t_start))
-        t_cps = _cps(len(t_text), t_dur)
-        t_lines = _count_wrapped_lines(t_text, max_line_chars)
+        s_text = _sanitize_cue_text(t_text)
+        t_cps = _cps(len(s_text), t_dur)
+        t_lines = _count_wrapped_lines(s_text, max_line_chars)
         if t_dur > max_dur or t_cps > max_cps or t_lines > max_lines:
             # finalize current and start a new one with w
             flush()
@@ -273,11 +391,19 @@ def _split_segment_without_words(
         if not cur_tokens:
             return
         dur = cur_duration_for(cur_chars)
-        t_text = _normalize_punctuation_spacing(" ".join(cur_tokens))
-        cues.append(
-            Cue(index=0, start=cur_start, end=min(end, cur_start + dur), text=t_text)
-        )
-        cur_start = cues[-1].end
+        t_text = _sanitize_cue_text(" ".join(cur_tokens))
+        new_end = min(end, cur_start + dur)
+        if t_text:
+            cues.append(
+                Cue(
+                    index=0,
+                    start=cur_start,
+                    end=new_end,
+                    text=t_text,
+                )
+            )
+        # Advance current start regardless to keep timing consistent
+        cur_start = new_end
         cur_tokens = []
         cur_chars = 0
 
@@ -285,8 +411,9 @@ def _split_segment_without_words(
         t_text = (" ".join([*cur_tokens, tok])).strip()
         t_chars = len(t_text)
         t_dur = cur_duration_for(t_chars)
-        t_cps = _cps(t_chars, t_dur)
-        t_lines = _count_wrapped_lines(t_text, max_line_chars)
+        s_text = _sanitize_cue_text(t_text)
+        t_cps = _cps(len(s_text), t_dur)
+        t_lines = _count_wrapped_lines(s_text, max_line_chars)
         if t_dur > max_dur or t_cps > max_cps or t_lines > max_lines:
             flush()
             cur_tokens = [tok]
@@ -341,7 +468,9 @@ def build_cues_from_segments(segments: Sequence[object]) -> list[Cue]:
 
 def _maybe_merge(a: Cue, b: Cue) -> Cue | None:
     gap = max(0.0, b.start - a.end)
-    merged_text = _normalize_punctuation_spacing((a.text + " " + b.text).strip())
+    merged_text = _sanitize_cue_text((a.text + " " + b.text).strip())
+    if not merged_text:
+        return None
     merged_dur = max(0.0, b.end - a.start)
     merged_chars = len(merged_text)
     if (
@@ -411,7 +540,7 @@ def refine_cues(cues: Sequence[Cue]) -> list[Cue]:
 def _format_cue_text(text: str) -> str:
     # Greedy wrap then clamp to 2 lines with boundary-aware mid split
     lines = _wrap_text(
-        _normalize_punctuation_spacing(text).strip(),
+        _sanitize_cue_text(text).strip(),
         DEFAULT_SUB_MAX_LINE_CHARS,
     )
     if len(lines) <= 2:

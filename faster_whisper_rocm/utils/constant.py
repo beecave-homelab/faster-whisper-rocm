@@ -165,7 +165,7 @@ DEFAULT_VAD_PARAMETERS: str | None = _get_opt_str(f"{ENV_PREFIX}VAD_PARAMETERS")
 # -------------
 # Output config
 # -------------
-DEFAULT_OUTPUT_FORMAT: str = _get_str(f"{ENV_PREFIX}OUTPUT_FORMAT", "plain")
+DEFAULT_OUTPUT_FORMAT: str = _get_str(f"{ENV_PREFIX}OUTPUT_FORMAT", "txt")
 DEFAULT_OUTPUT: Path = _get_path(f"{ENV_PREFIX}OUTPUT", Path("data/transcripts"))
 DEFAULT_MAX_SEGMENTS: int = _get_int(f"{ENV_PREFIX}MAX_SEGMENTS", -1)
 DEFAULT_PRINT_LANGUAGE: bool = _get_bool(f"{ENV_PREFIX}PRINT_LANGUAGE", True)
@@ -229,6 +229,10 @@ DEFAULT_SUB_MIN_SEGMENT_DURATION_SEC: float = _get_float(
 )
 DEFAULT_SUB_DISPLAY_BUFFER_SEC: float = _get_float(
     f"{ENV_PREFIX}DISPLAY_BUFFER_SEC", 0.2
+)
+# Repetition clamp: limit consecutive identical words in rendered cues
+DEFAULT_SUB_MAX_CONSECUTIVE_REPEATS: int = _get_int(
+    f"{ENV_PREFIX}MAX_CONSECUTIVE_REPEATS", 2
 )
 
 # Timing / gap
