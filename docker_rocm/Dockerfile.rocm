@@ -1,6 +1,10 @@
 ARG BASE_IMAGE="rocm/pytorch:rocm6.1_ubuntu22.04_py3.10_pytorch_2.1.2"
 
 FROM $BASE_IMAGE
+
+# GPU architectures to build for. Override during build: docker build --build-arg GPU_ARCHS=gfx1030 .
+ARG GPU_ARCHS="gfx1030"
+ENV GPU_ARCHS=${GPU_ARCHS}
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git  cmake cmake-curses-gui ffmpeg libopenblas-dev vim \
@@ -9,7 +13,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY docker_rocm/ct2_3.23.0_rocm.patch docker_rocm/whisperX_3.1.1.patch /home/
+COPY ct2_3.23.0_rocm.patch whisperX_3.1.1.patch /home/
 
 ENV ONEDNN_VERSION=3.1.1
 RUN wget -q https://github.com/oneapi-src/oneDNN/archive/refs/tags/v${ONEDNN_VERSION}.tar.gz && \
@@ -43,16 +47,14 @@ RUN git clone https://github.com/OpenNMT/CTranslate2.git \
     && git submodule update --init --recursive \
     && git apply /home/ct2_3.23.0_rocm.patch \
     && mkdir build \
-    && cd build \
+    && cd build \ 
     && cmake -DCMAKE_INSTALL_PREFIX=${CTRANSLATE2_ROOT}  \
          -DWITH_CUDA=ON -DWITH_CUDNN=ON -DWITH_MKL=OFF -DWITH_DNNL=ON -DOPENMP_RUNTIME=COMP \
-         -DCMAKE_HIP_ARCHITECTURES="gfx1030" -DGPU_TARGETS="gfx1030" -DAMDGPU_TARGETS="gfx1030" \
+         -DCMAKE_HIP_ARCHITECTURES="${GPU_ARCHS}" -DGPU_TARGETS="${GPU_ARCHS}" -DAMDGPU_TARGETS="${GPU_ARCHS}" \
          -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DGPU_RUNTIME=HIP -DWITH_OPENBLAS=ON  -DENABLE_CPU_DISPATCH=OFF .. \
     && make install  -j16 
 RUN cd /home/CTranslate2/python \
-     && pip install --upgrade pip build wheel \
      && pip install -r install_requirements.txt \
-     && python -m build --wheel \
      && pip install  .
 
 # faster-whisper
@@ -77,7 +79,8 @@ ENV CT2_CUDA_CACHING_ALLOCATOR_CONFIG=4,3,12,419430400
 RUN pip install --upgrade pip
 
 # Export script: copies the built wheel and CTranslate2 libs to a mounted /out
-RUN printf '#!/usr/bin/env sh\nset -e\nmkdir -p /out\n# copy Python wheel(s) if present\nfor f in /home/CTranslate2/python/dist/*.whl; do\n  if [ -e "$f" ]; then\n    cp "$f" /out/\n  fi\ndone\n# copy CTranslate2 install tree for vendor script usage\nmkdir -p /out/ctranslate2_root\ncp -a "$CTRANSLATE2_ROOT"/. /out/ctranslate2_root/\necho "Exported to /out: wheel(s) and ctranslate2_root/"\n' > /usr/local/bin/export_ct2_artifacts.sh && chmod +x /usr/local/bin/export_ct2_artifacts.sh
+COPY export_ct2_artifacts.sh /usr/local/bin/export_ct2_artifacts.sh
+RUN chmod +x /usr/local/bin/export_ct2_artifacts.sh
 
 VOLUME ["/out"]
 CMD ["/usr/local/bin/export_ct2_artifacts.sh"]

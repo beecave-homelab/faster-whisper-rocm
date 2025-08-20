@@ -1,0 +1,12 @@
+services:
+  ct2:
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
+      args:
+        GPU_ARCHS: gfx1030
+    image: ct2-rocm-gfx1030
+    environment:
+      - OUT_DIR=/out
+    volumes:
+      - ../out:/out
