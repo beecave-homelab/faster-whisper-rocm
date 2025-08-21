@@ -4,6 +4,10 @@ description: Repository overview and CLI architecture
 
 # Project Overview
 
+[![Version](https://img.shields.io/badge/Version-v0.2.0-informational)]
+
+> Current Version: v0.2.0 (21-08-2025)
+
 This repository provides a Typer-based Python CLI with ROCm-accelerated speech transcription via faster-whisper using a custom ROCm build of CTranslate2.
 
 ## Structure

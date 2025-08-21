@@ -7,4 +7,4 @@ Follows Google style docstrings as per project standards.
 __all__ = ["__version__"]
 
 #: Semantic version of the package.
-__version__ = "0.1.0"
+__version__ = "0.2.0"

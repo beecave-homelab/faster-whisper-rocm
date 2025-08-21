@@ -4,7 +4,7 @@ A modern Python CLI package boilerplate using PDM for package management and Typ
 
 ## Versions
 
-**Current version**: 0.1.0
+**Current version**: 0.2.0
 
 ## Table of Contents
 
