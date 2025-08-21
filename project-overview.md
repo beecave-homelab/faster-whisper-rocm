@@ -1,8 +1,75 @@
 ---
-description: Repository overview and CLI architecture
+repo: https://github.com/beecave-homelab/faster-whisper-rocm.git
+commit: unknown
+generated: 2025-08-21T14:20:07+02:00
 ---
 
-# Project Overview
+<!-- SECTIONS:CLI,DOCKER,TESTS -->
+
+# Project Overview | faster-whisper-rocm
+
+Typer-based Python CLI for speech transcription using faster-whisper with a ROCm-enabled CTranslate2 build for AMD GPUs.
+
+[![Language](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/Version-0.2.0-brightgreen)](#version-summary)
+
+## Table of Contents
+ 
+- [Quickstart for Developers](#quickstart-for-developers)
+- [Version Summary](#version-summary)
+- [Project Features](#project-features)
+- [Project Structure](#project-structure)
+- [Architecture Highlights](#architecture-highlights)
+
+## Quickstart for Developers
+ 
+```bash
+git clone https://github.com/beecave-homelab/faster-whisper-rocm.git
+cd faster-whisper-rocm
+python3 -m pip install -U pdm
+pdm install
+pdm run faster-whisper-rocm --help
+```
+
+## Version Summary
+ 
+| Version | Date       | Type | Key Changes               |
+|---------|------------|------|---------------------------|
+| 0.2.0   | 2025-08-21 | ✨    | ROCm CTranslate2 workflow |
+
+## Project Features
+- Typer CLI with commands: install-ctranslate2, model-info, transcribe
+- Environment-driven defaults via `.env` (prefix `FWR_TRANSCRIBE_`)
+- Multiple transcript formats: txt, jsonl, srt, vtt
+- Progress-aware transcription with segment/duration heuristics
+- Rich-powered HF cache manager at `scripts/hf_models.py`
+- Tests with coverage (threshold 85%)
+
+## Project Structure
+<details><summary>Show tree</summary>
+
+```text
+faster_whisper_rocm/           # package root
+  cli/                         # Typer app + commands
+  io/                          # formatting helpers
+  models/                      # model loading wrapper
+  utils/                       # env + constants
+tests/                         # pytest suite
+docker_rocm/                   # ROCm Dockerfile and patches
+out/                           # built wheels (incl. ROCm ctranslate2)
+pyproject.toml                 # pdm, ruff, pytest config
+```
+</details>
+
+## Architecture Highlights
+- Console script `faster-whisper-rocm` → `faster_whisper_rocm/cli/app.py:app`
+- Model wrapper at `faster_whisper_rocm/models/whisper.py` centralizes loading
+- Typed env defaults in `faster_whisper_rocm/utils/constant.py`
+- Coverage and linting configured in `pyproject.toml`
+
+---
+
+## Detailed Overview
 
 [![Version](https://img.shields.io/badge/Version-v0.2.0-informational)]
 
@@ -207,3 +274,5 @@ When `--output` is omitted, output is written to `data/transcripts/<audio_basena
 - Tests avoid model downloads; heavy tests should be opt-in via env flags if added later.
 - No changes are made to `CTranslate2/` source for CLI operation; only the wheel installation is required to activate ROCm.
 - Coverage is enabled by default with pytest-cov. After running `pdm run pytest`, open `htmlcov/index.html` for the HTML report (XML at `coverage.xml`).
+
+**Always update this file when code or configuration changes.**
